@@ -1,0 +1,6 @@
+{
+  "name": "FPStudio",
+  "description": "FPStudio - Sistema completo para estúdio de gravações e edição de vídeo com agendamento online, chat em tempo real, orçamentos, PIX, controle financeiro e relatórios.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

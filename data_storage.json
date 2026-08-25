@@ -1,0 +1,146 @@
+{
+  "studioInfo": {
+    "name": "FPStudio",
+    "subtitle": "Gravações e Edição Video",
+    "cnpj": "12.345.678/0001-90",
+    "pixKey": "36790486534",
+    "pixKeyType": "CPF / Chave PIX",
+    "pixBeneficiary": "FPStudio (Nubank)",
+    "city": "Salvador - BA",
+    "address": "Trav. Dois Leões, 19 - Pernambués",
+    "fullAddress": "Travessa Dois Leões, 19 - Pernambués, Salvador - BA, CEP 41110-050",
+    "cep": "41110-050",
+    "phone": "(71) 9 8118-4589",
+    "whatsapp": "5571981184589",
+    "email": "fpstudio2027@gmail.com"
+  },
+  "rooms": [
+    {
+      "id": "room-a",
+      "name": "Sala A - Gravação Principal & Produção",
+      "description": "Ambiente acústico completo do FPStudio equipado com DAW Pro-Tools, placa M-Audio Pro, monitoramento caixas TOMATO e microfonação KADOSH 412.",
+      "hourlyRate": 120,
+      "capacity": 8,
+      "equipmentList": [
+        "DAW Pro-Tools",
+        "Microfone KADOSH 412",
+        "Placa de Áudio M-Audio Pro",
+        "Caixas TOMATO",
+        "Guitarras Ibanez e Memphis",
+        "Baixo 6 cordas e 5 cordas",
+        "Violão Aço e Nylon"
+      ]
+    },
+    {
+      "id": "room-b",
+      "name": "Sala B - Estúdio de Instrumentos & Edição",
+      "description": "Espaço projetado para gravação de Bateria, Baixo, Guitarras, Teclado, Percussão, Sanfona e Violino com acústica tratada.",
+      "hourlyRate": 90,
+      "capacity": 6,
+      "equipmentList": [
+        "DAW Pro-Tools",
+        "Placa de Áudio M-Audio Pro",
+        "Caixas TOMATO",
+        "Microfones KADOSH 412",
+        "Guitarras Ibanez & Memphis",
+        "Baixo 5 e 6 cordas",
+        "Violão Aço & Nylon"
+      ]
+    },
+    {
+      "id": "room-c",
+      "name": "Cabine Vocal & Edição de Vídeo",
+      "description": "Cabine acústica isolada para gravação de Voz, Voz Guia, Afinação de Voz, Edição de Bateria e Produção de Vinhetas.",
+      "hourlyRate": 80,
+      "capacity": 4,
+      "equipmentList": [
+        "DAW Pro-Tools",
+        "Microfone KADOSH 412",
+        "Placa de Áudio M-Audio Pro",
+        "Caixas TOMATO",
+        "Ilha de Edição de Vídeo Pro"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "id": "srv-autoral-com-arranjo",
+      "name": "Música Autoral (Com Arranjo)",
+      "description": "Produção completa de composição autoral no FPStudio com criação de arranjo instrumental, captação multicanal e gravação no Pro-Tools.",
+      "category": "produção",
+      "defaultRoomId": "room-a",
+      "defaultRoomName": "Sala A - Gravação Principal & Produção",
+      "durationHours": 4,
+      "basePrice": 800,
+      "iconName": "Music2",
+      "imageUrl": "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "srv-autoral-sem-arranjo",
+      "name": "Música Autoral (Sem Arranjo)",
+      "description": "Gravação direta e captação da sua música autoral com voz guia, instrumento base (violão/teclado) ou acompanhamento simples.",
+      "category": "gravação",
+      "defaultRoomId": "room-a",
+      "defaultRoomName": "Sala A - Gravação Principal & Produção",
+      "durationHours": 2,
+      "basePrice": 500,
+      "iconName": "Mic2",
+      "imageUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "srv-comum-com-arranjo",
+      "name": "Música Comum (Com Arranjo)",
+      "description": "Gravação de música comum/cover com arranjo instrumental exclusivo personalizado com instrumentos da sua escolha.",
+      "category": "produção",
+      "defaultRoomId": "room-a",
+      "defaultRoomName": "Sala A - Gravação Principal & Produção",
+      "durationHours": 3,
+      "basePrice": 600,
+      "iconName": "Sliders",
+      "imageUrl": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "srv-comum-sem-arranjo",
+      "name": "Música Comum (Sem Arranjo)",
+      "description": "Captação rápida de voz e instrumentos para reprodução de música comum sem alterações de arranjo.",
+      "category": "gravação",
+      "defaultRoomId": "room-b",
+      "defaultRoomName": "Sala B - Estúdio de Instrumentos & Edição",
+      "durationHours": 2,
+      "basePrice": 400,
+      "iconName": "Disc3",
+      "imageUrl": "https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "srv-vinheta",
+      "name": "Vinheta Profissional",
+      "description": "Criação, locução, gravação e edição de vinheta para comerciais, podcasts, emissoras de rádio e redes sociais.",
+      "category": "dublagem",
+      "defaultRoomId": "room-c",
+      "defaultRoomName": "Cabine Vocal & Edição de Vídeo",
+      "durationHours": 1,
+      "basePrice": 250,
+      "iconName": "Radio",
+      "imageUrl": "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=800&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "srv-edicao-afinacao",
+      "name": "Edição de Bateria & Afinação de Voz",
+      "description": "Tratamento de áudio em Pro-Tools: quantização/alinhamento de bateria e afinação cirúrgica de vozes.",
+      "category": "mix_master",
+      "defaultRoomId": "room-c",
+      "defaultRoomName": "Cabine Vocal & Edição de Vídeo",
+      "durationHours": 2,
+      "basePrice": 300,
+      "iconName": "AudioWaveform",
+      "imageUrl": "https://images.unsplash.com/photo-1598653222000-6b7b7a552625?w=800&auto=format&fit=crop&q=80"
+    }
+  ],
+  "clients": [],
+  "bookings": [],
+  "quotes": [],
+  "chatMessages": [],
+  "notifications": [],
+  "transactions": [],
+  "reviews": []
+}
