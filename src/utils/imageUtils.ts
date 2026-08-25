@@ -74,3 +74,40 @@ export async function compressImageFile(
     img.src = objectUrl;
   });
 }
+
+/**
+ * Uploads compressed image directly to the backend /api/upload endpoint
+ * to get a persistent, lightweight server static URL (/uploads/service-xxx.jpg)
+ */
+export async function uploadImageToServer(
+  dataUrlOrFile: string | File,
+  category = 'service'
+): Promise<string> {
+  try {
+    let base64Data = '';
+    if (typeof dataUrlOrFile === 'string') {
+      if (!dataUrlOrFile.startsWith('data:')) {
+        return dataUrlOrFile;
+      }
+      base64Data = dataUrlOrFile;
+    } else {
+      base64Data = await compressImageFile(dataUrlOrFile, 1200, 1200, 0.82);
+    }
+
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl: base64Data, category }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.url) return data.url;
+    }
+    return base64Data;
+  } catch (err) {
+    console.warn('[imageUtils] Falha ao enviar imagem ao servidor, mantendo fallback local:', err);
+    if (typeof dataUrlOrFile === 'string') return dataUrlOrFile;
+    return compressImageFile(dataUrlOrFile, 1000, 1000, 0.75);
+  }
+}

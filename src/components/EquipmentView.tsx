@@ -34,7 +34,7 @@ import { StudioEquipmentItem, StudioService, Role } from '../types';
 import { INITIAL_EQUIPMENT_ITEMS } from '../data/equipmentData';
 import { INITIAL_SERVICES } from '../data/initialData';
 import { formatBRL } from '../utils/exportUtils';
-import { compressImageFile } from '../utils/imageUtils';
+import { compressImageFile, uploadImageToServer } from '../utils/imageUtils';
 import { safeStorage } from '../utils/safeStorage';
 
 interface EquipmentViewProps {
@@ -121,6 +121,8 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
   const [serviceToDelete, setServiceToDelete] = useState<StudioService | null>(null);
   const [isCompressingServiceImage, setIsCompressingServiceImage] = useState<boolean>(false);
   const [isCompressingEquipImage, setIsCompressingEquipImage] = useState<boolean>(false);
+  const [serviceImageTab, setServiceImageTab] = useState<'upload' | 'preset' | 'url'>('upload');
+  const [equipImageTab, setEquipImageTab] = useState<'upload' | 'preset' | 'url'>('upload');
 
   // Synchronize with propServices when they update from server
   useEffect(() => {
@@ -187,47 +189,55 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
     return matchesCategory && matchesSearch;
   });
 
-  // Upload handler for Equipment with automatic compression
+  // Upload handler for Equipment with automatic compression & server storage
   const handleImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsCompressingEquipImage(true);
     try {
-      const compressedBase64 = await compressImageFile(file, 1280, 1280, 0.85);
-      if (editingItem) {
-        setEditingItem((prev) => (prev ? { ...prev, imageUrl: compressedBase64 } : null));
-      }
+      const uploadedUrl = await uploadImageToServer(file, 'equipment');
+      setEditingItem((prev) => (prev ? { ...prev, imageUrl: uploadedUrl } : null));
     } catch (err) {
       console.error('Erro ao processar imagem de equipamento:', err);
       alert('Não foi possível processar esta imagem. Tente uma imagem diferente.');
     } finally {
       setIsCompressingEquipImage(false);
+      e.target.value = '';
     }
   };
 
-  // Upload handler for Service with automatic high-efficiency compression
+  // Upload handler for Service with automatic compression & permanent server upload
   const handleServiceImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsCompressingServiceImage(true);
     try {
-      const compressedBase64 = await compressImageFile(file, 1280, 1280, 0.85);
-      if (editingService) {
-        setEditingService((prev) => (prev ? { ...prev, imageUrl: compressedBase64 } : null));
-      }
+      const uploadedUrl = await uploadImageToServer(file, 'service');
+      setEditingService((prev) => (prev ? { ...prev, imageUrl: uploadedUrl } : null));
     } catch (err) {
       console.error('Erro ao processar imagem de serviço:', err);
       alert('Não foi possível processar a imagem do serviço. Tente outra foto.');
     } finally {
       setIsCompressingServiceImage(false);
+      e.target.value = '';
     }
   };
 
-  const handleSaveItem = (e: React.FormEvent) => {
+  const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem?.title || !editingItem?.description) return;
+
+    let finalImageUrl =
+      editingItem.imageUrl ||
+      'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&auto=format&fit=crop&q=80';
+
+    if (finalImageUrl.startsWith('data:')) {
+      try {
+        finalImageUrl = await uploadImageToServer(finalImageUrl, 'equipment');
+      } catch (err) {}
+    }
 
     if (editingItem.id) {
       // Update existing
@@ -236,6 +246,7 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
           ? ({
               ...item,
               ...editingItem,
+              imageUrl: finalImageUrl,
               price: editingItem.price !== undefined ? editingItem.price : (item.price || 0),
               priceDetails: editingItem.priceDetails !== undefined ? editingItem.priceDetails : (item.priceDetails || ''),
             } as StudioEquipmentItem)
@@ -252,9 +263,7 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
         price: editingItem.price !== undefined ? editingItem.price : 0,
         priceDetails: editingItem.priceDetails || '',
         description: editingItem.description || '',
-        imageUrl:
-          editingItem.imageUrl ||
-          'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&auto=format&fit=crop&q=80',
+        imageUrl: finalImageUrl,
         fullSpecs: editingItem.fullSpecs || ['Equipamento de alta fidelidade para o FPStudio'],
         recommendedUses: editingItem.recommendedUses || ['Gravação', 'Mixagem'],
         includedInStudio: true,
@@ -274,13 +283,23 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
     }
   };
 
-  // Save Service handler
+  // Save Service handler with persistent server image conversion
   const handleSaveService = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingService?.name || !editingService?.description) return;
 
     const basePriceNum = Number(editingService.basePrice) || 0;
     const durationNum = Number(editingService.durationHours) || 2;
+
+    let finalImageUrl =
+      editingService.imageUrl ||
+      'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&auto=format&fit=crop&q=80';
+
+    if (finalImageUrl.startsWith('data:')) {
+      try {
+        finalImageUrl = await uploadImageToServer(finalImageUrl, 'service');
+      } catch (err) {}
+    }
 
     if (editingService.id) {
       // Update existing
@@ -294,7 +313,7 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
         durationHours: durationNum,
         basePrice: basePriceNum,
         iconName: editingService.iconName || 'Music2',
-        imageUrl: editingService.imageUrl || 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&auto=format&fit=crop&q=80',
+        imageUrl: finalImageUrl,
       };
 
       const updatedList = serviceList.map((s) => (s.id === updatedService.id ? updatedService : s));
@@ -325,7 +344,7 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
         durationHours: durationNum,
         basePrice: basePriceNum,
         iconName: editingService.iconName || 'Music2',
-        imageUrl: editingService.imageUrl || 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&auto=format&fit=crop&q=80',
+        imageUrl: finalImageUrl,
       };
 
       const updatedList = [...serviceList, newService];
@@ -1126,48 +1145,108 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-zinc-400 font-bold mb-1">
-                  Foto do Equipamento / Instrumento
-                </label>
-                
-                {editingItem.imageUrl && (
-                  <div className="relative h-40 w-full rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800">
+              {/* Foto do Equipamento com Abas Separadas */}
+              <div className="space-y-3 pt-2 border-t border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-zinc-300 font-bold text-xs">
+                    Foto do Equipamento / Instrumento:
+                  </label>
+                  <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setEquipImageTab('upload')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                        equipImageTab === 'upload'
+                          ? 'bg-[#00FF41] text-black font-black shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      💻 Do seu PC / Celular
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEquipImageTab('url')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                        equipImageTab === 'url'
+                          ? 'bg-[#00FF41] text-black font-black shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      🌐 Link Web (Opcional)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Preview Box */}
+                {editingItem.imageUrl ? (
+                  <div className="relative h-44 w-full rounded-2xl overflow-hidden bg-zinc-950 border border-zinc-800">
                     <img
                       src={editingItem.imageUrl}
                       alt="Preview"
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end justify-between p-3">
+                      <span className="text-[11px] font-bold text-[#00FF41] bg-black/70 px-2.5 py-1 rounded-lg border border-[#00FF41]/40 backdrop-blur-sm flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" /> Foto Carregada
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditingItem({ ...editingItem, imageUrl: '' })}
+                        className="text-[10px] bg-red-600/90 hover:bg-red-600 text-white font-bold px-2.5 py-1 rounded-lg transition shadow cursor-pointer"
+                      >
+                        Remover Foto
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-28 w-full rounded-2xl bg-zinc-900/50 border border-zinc-800 flex flex-col items-center justify-center text-zinc-500 text-xs">
+                    <ImageIcon className="w-7 h-7 mb-1 opacity-40" />
+                    <span>Nenhuma imagem selecionada</span>
                   </div>
                 )}
 
-                <label className="w-full px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-dashed border-[#00FF41]/60 hover:border-[#00FF41] rounded-xl text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition shadow-sm">
-                  <Upload className={`w-4 h-4 text-[#00FF41] ${isCompressingEquipImage ? 'animate-bounce' : ''}`} />
-                  <span>
-                    {isCompressingEquipImage
-                      ? 'Otimizando foto do equipamento...'
-                      : 'Importar Imagem do Dispositivo / Foto'}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    disabled={isCompressingEquipImage}
-                    onChange={handleImageFileUpload}
-                    className="hidden"
-                  />
-                </label>
+                {/* Tab: Upload do PC / Celular */}
+                {equipImageTab === 'upload' && (
+                  <div>
+                    <label className="w-full px-4 py-3 bg-zinc-900 hover:bg-zinc-850 border-2 border-dashed border-[#00FF41]/60 hover:border-[#00FF41] rounded-2xl text-white font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition shadow-sm">
+                      <Upload className={`w-5 h-5 text-[#00FF41] ${isCompressingEquipImage ? 'animate-bounce' : ''}`} />
+                      <span>
+                        {isCompressingEquipImage
+                          ? 'OTIMIZANDO E ENVIANDO FOTO AO SERVIDOR...'
+                          : editingItem.imageUrl
+                          ? 'SUBSTITUIR POR OUTRA FOTO DO PC / CELULAR'
+                          : 'ESCOLHER FOTO DO SEU COMPUTADOR OU CELULAR'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={isCompressingEquipImage}
+                        onChange={handleImageFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-[10px] text-zinc-400 mt-1 text-center">
+                      ✓ A foto é salva diretamente no servidor, sem precisar de nenhum link externo.
+                    </p>
+                  </div>
+                )}
 
-                <div>
-                  <span className="text-[10px] text-zinc-400 font-bold block mt-1">Ou informe a URL da foto:</span>
-                  <input
-                    type="url"
-                    required
-                    value={editingItem.imageUrl || ''}
-                    onChange={(e) => setEditingItem({ ...editingItem, imageUrl: e.target.value })}
-                    placeholder="https://images.unsplash.com/..."
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-[#00FF41] text-xs"
-                  />
-                </div>
+                {/* Tab: Link Web (Opcional) */}
+                {equipImageTab === 'url' && (
+                  <div className="bg-zinc-900/80 p-3 rounded-2xl border border-zinc-800 space-y-1">
+                    <span className="text-[11px] text-zinc-300 font-bold block">
+                      Cole a URL da Imagem na Internet (Opcional):
+                    </span>
+                    <input
+                      type="url"
+                      value={editingItem.imageUrl || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, imageUrl: e.target.value })}
+                      placeholder="https://images.unsplash.com/..."
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-[#00FF41] text-xs font-mono"
+                    />
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1306,58 +1385,148 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
               </div>
 
               {/* Foto / Imagem do Serviço */}
-              <div className="space-y-2 pt-2 border-t border-zinc-800">
-                <label className="block text-zinc-200 font-bold flex items-center justify-between">
-                  <span>Foto de Capa do Serviço</span>
-                  <span className="text-[10px] text-[#00FF41] font-mono">Upload ou URL</span>
-                </label>
+              <div className="space-y-3 pt-2 border-t border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-zinc-200 font-bold text-xs">
+                    Foto de Capa do Serviço:
+                  </label>
+                  <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setServiceImageTab('upload')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                        serviceImageTab === 'upload'
+                          ? 'bg-[#00FF41] text-black font-black shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      💻 Do seu PC / Celular
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setServiceImageTab('preset')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                        serviceImageTab === 'preset'
+                          ? 'bg-[#00FF41] text-black font-black shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      ⚡ Fotos Prontas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setServiceImageTab('url')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                        serviceImageTab === 'url'
+                          ? 'bg-[#00FF41] text-black font-black shadow-sm'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      🌐 Link Web (Opcional)
+                    </button>
+                  </div>
+                </div>
 
                 {/* Preview Box */}
-                {editingService.imageUrl && (
-                  <div className="relative h-44 w-full rounded-2xl overflow-hidden bg-zinc-950 border border-zinc-800">
+                {editingService.imageUrl ? (
+                  <div className="relative h-44 w-full rounded-2xl overflow-hidden bg-zinc-950 border border-zinc-800 group">
                     <img
                       src={editingService.imageUrl}
                       alt="Preview do Serviço"
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-3">
-                      <span className="text-[11px] font-bold text-white bg-black/60 px-2.5 py-1 rounded-lg border border-zinc-700">
-                        Pré-visualização de Capa
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end justify-between p-3">
+                      <span className="text-[11px] font-bold text-[#00FF41] bg-black/70 px-2.5 py-1 rounded-lg border border-[#00FF41]/40 backdrop-blur-sm flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" /> Foto Carregada
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditingService({ ...editingService, imageUrl: '' })}
+                        className="text-[10px] bg-red-600/90 hover:bg-red-600 text-white font-bold px-2.5 py-1 rounded-lg transition shadow cursor-pointer"
+                      >
+                        Remover Foto
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-32 w-full rounded-2xl bg-zinc-900/60 border border-zinc-800 flex flex-col items-center justify-center text-zinc-500 text-xs">
+                    <ImageIcon className="w-8 h-8 mb-1 opacity-50" />
+                    <span>Nenhuma imagem selecionada</span>
+                  </div>
+                )}
+
+                {/* TAB 1: Upload do PC / Celular */}
+                {serviceImageTab === 'upload' && (
+                  <div className="space-y-1.5">
+                    <label className="w-full px-4 py-3.5 bg-zinc-900 hover:bg-zinc-850 border-2 border-dashed border-[#00FF41]/60 hover:border-[#00FF41] rounded-2xl text-white font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition shadow-md">
+                      <Upload className={`w-5 h-5 text-[#00FF41] ${isCompressingServiceImage ? 'animate-bounce' : ''}`} />
+                      <span>
+                        {isCompressingServiceImage
+                          ? 'OTIMIZANDO E ENVIANDO FOTO AO SERVIDOR...'
+                          : editingService.imageUrl
+                          ? 'SUBSTITUIR POR OUTRA FOTO DO SEU PC'
+                          : 'ESCOLHER FOTO DO SEU COMPUTADOR OU CELULAR'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={isCompressingServiceImage}
+                        onChange={handleServiceImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-[10px] text-zinc-400 text-center">
+                      ✓ A foto é salva diretamente no servidor para este serviço, sem precisar de link externo.
+                    </p>
+                  </div>
+                )}
+
+                {/* TAB 2: Fotos Prontas do Estúdio */}
+                {serviceImageTab === 'preset' && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-zinc-400 font-bold block">
+                      Clique em um tema para usar a foto correspondente:
+                    </span>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[
+                        { label: 'Vocal / Mic', url: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&auto=format&fit=crop&q=80' },
+                        { label: 'Mesa / Mix', url: 'https://images.unsplash.com/photo-1598653222000-6b7b7a552625?w=800&auto=format&fit=crop&q=80' },
+                        { label: 'Instrumentos', url: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80' },
+                        { label: 'Live Session', url: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&auto=format&fit=crop&q=80' },
+                      ].map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setEditingService({ ...editingService, imageUrl: preset.url })}
+                          className={`text-[10px] p-2 rounded-xl border font-bold text-center truncate transition cursor-pointer ${
+                            editingService.imageUrl === preset.url
+                              ? 'bg-[#00FF41]/20 border-[#00FF41] text-[#00FF41]'
+                              : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
 
-                {/* Upload Button */}
-                <label className="w-full px-4 py-3 bg-zinc-900 hover:bg-zinc-850 border-2 border-dashed border-[#00FF41]/60 hover:border-[#00FF41] rounded-2xl text-white font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition shadow-md">
-                  <Upload className={`w-5 h-5 text-[#00FF41] ${isCompressingServiceImage ? 'animate-bounce' : ''}`} />
-                  <span>
-                    {isCompressingServiceImage
-                      ? 'OTIMIZANDO E PROCESSANDO IMAGEM...'
-                      : 'IMPORTAR FOTO DO SEU COMPUTADOR / CELULAR'}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    disabled={isCompressingServiceImage}
-                    onChange={handleServiceImageUpload}
-                    className="hidden"
-                  />
-                </label>
-
-                {/* URL Input */}
-                <div>
-                  <span className="text-[10px] text-zinc-400 font-bold block mb-1">
-                    Ou digite o link direto da imagem na internet:
-                  </span>
-                  <input
-                    type="url"
-                    value={editingService.imageUrl || ''}
-                    onChange={(e) => setEditingService({ ...editingService, imageUrl: e.target.value })}
-                    placeholder="https://images.unsplash.com/..."
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-[#00FF41] text-xs font-mono"
-                  />
-                </div>
+                {/* TAB 3: Link Web (Opcional) */}
+                {serviceImageTab === 'url' && (
+                  <div className="bg-zinc-900/80 p-3 rounded-2xl border border-zinc-800 space-y-1">
+                    <span className="text-[10px] text-zinc-300 font-bold block">
+                      Cole o link direto da imagem na internet (Opcional):
+                    </span>
+                    <input
+                      type="url"
+                      value={editingService.imageUrl || ''}
+                      onChange={(e) => setEditingService({ ...editingService, imageUrl: e.target.value })}
+                      placeholder="https://images.unsplash.com/... ou link direto"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-[#00FF41] text-xs font-mono"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Descrição Detalhada */}

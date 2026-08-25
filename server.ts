@@ -246,6 +246,55 @@ async function startApp() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+  // Create and serve uploads folder for uploaded photos (services, equipment, receipts)
+  const uploadsDir = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    try {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    } catch (e) {}
+  }
+  app.use('/uploads', express.static(uploadsDir));
+
+  // API ROUTE: Upload image (converts Base64 to persistent file URL)
+  app.post('/api/upload', (req, res) => {
+    try {
+      const { dataUrl, filename, category } = req.body;
+      if (!dataUrl) {
+        return res.status(400).json({ error: 'Nenhuma imagem fornecida' });
+      }
+
+      // If it's already an http/https URL or local path, return as is
+      if (!dataUrl.startsWith('data:')) {
+        return res.json({ success: true, url: dataUrl });
+      }
+
+      const match = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!match) {
+        return res.json({ success: true, url: dataUrl });
+      }
+
+      const mimeType = match[1];
+      const base64Data = match[2];
+      let ext = 'jpg';
+      if (mimeType.includes('png')) ext = 'png';
+      else if (mimeType.includes('webp')) ext = 'webp';
+      else if (mimeType.includes('gif')) ext = 'gif';
+
+      const safePrefix = category ? `${category}-` : 'img-';
+      const safeName = `${safePrefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      const filePath = path.join(uploadsDir, safeName);
+
+      fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+      const url = `/uploads/${safeName}`;
+
+      console.log(`[Upload] Foto salva com sucesso: ${url}`);
+      return res.json({ success: true, url });
+    } catch (err) {
+      console.error('[Upload] Erro ao processar upload:', err);
+      return res.status(500).json({ error: 'Erro ao salvar arquivo' });
+    }
+  });
+
   // API ROUTE: Health
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });

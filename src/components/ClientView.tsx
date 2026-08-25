@@ -753,37 +753,61 @@ export const ClientView: React.FC<ClientViewProps> = ({
                       onClick={() => {
                         setSelectedService(srv);
                       }}
-                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                      className={`overflow-hidden rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
                         isSelected
                           ? 'bg-emerald-500/10 border-emerald-500 shadow-xl shadow-emerald-500/10 dark:bg-emerald-950/30'
                           : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                       }`}
                     >
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
-                            isSelected ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                          }`}>
-                            {getServiceIcon(srv.iconName)}
+                      {srv.imageUrl ? (
+                        <div className="relative h-28 w-full overflow-hidden bg-slate-950">
+                          <img
+                            src={srv.imageUrl}
+                            alt={srv.name}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end justify-between p-2.5">
+                            <span className="text-[10px] font-bold text-white bg-black/60 px-2 py-0.5 rounded backdrop-blur-xs flex items-center gap-1">
+                              {getServiceIcon(srv.iconName)}
+                              <span className="capitalize">{srv.category || 'Serviço'}</span>
+                            </span>
+                            <span className="text-xs font-black text-emerald-400 bg-black/70 px-2 py-0.5 rounded">
+                              {formatBRL(srv.basePrice)}
+                            </span>
                           </div>
-                          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50 px-2.5 py-1 rounded-full">
-                            {formatBRL(srv.basePrice)}
-                          </span>
+                        </div>
+                      ) : null}
+
+                      <div className="p-4 flex-1 flex flex-col justify-between">
+                        <div>
+                          {!srv.imageUrl && (
+                            <div className="flex items-center justify-between mb-3">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+                                isSelected ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                              }`}>
+                                {getServiceIcon(srv.iconName)}
+                              </div>
+                              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50 px-2.5 py-1 rounded-full">
+                                {formatBRL(srv.basePrice)}
+                              </span>
+                            </div>
+                          )}
+
+                          <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                            {srv.name}
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                            {srv.description}
+                          </p>
                         </div>
 
-                        <h3 className="font-bold text-slate-900 dark:text-white text-sm">
-                          {srv.name}
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                          {srv.description}
-                        </p>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-                        <span className="flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300">
-                          <Clock className="w-3.5 h-3.5 text-emerald-500" /> {srv.durationHours}h de sessão
-                        </span>
-                        <span className="font-medium text-emerald-500/80">FPStudio Salvador</span>
+                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300">
+                            <Clock className="w-3.5 h-3.5 text-emerald-500" /> {srv.durationHours}h de sessão
+                          </span>
+                          <span className="font-medium text-emerald-500/80">FPStudio Salvador</span>
+                        </div>
                       </div>
                     </div>
                   );
