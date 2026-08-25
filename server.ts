@@ -481,12 +481,32 @@ async function startApp() {
   // API ROUTE: Update Service (valores, imagens, descrições)
   app.put('/api/services/:id', (req, res) => {
     const { id } = req.params;
-    const serviceIndex = services.findIndex((s) => s.id === id);
-    if (serviceIndex === -1) {
-      return res.status(404).json({ error: 'Serviço não encontrado' });
+    let serviceIndex = services.findIndex((s) => s.id === id);
+    if (serviceIndex === -1 && req.body.name) {
+      serviceIndex = services.findIndex((s) => s.name?.toLowerCase().trim() === req.body.name?.toLowerCase().trim());
     }
 
     const { name, description, category, defaultRoomId, defaultRoomName, durationHours, basePrice, iconName, imageUrl } = req.body;
+
+    if (serviceIndex === -1) {
+      const newService: StudioService = {
+        id: id || `srv-${Date.now()}`,
+        name: name || 'Novo Serviço',
+        description: description || '',
+        category: category || 'gravação',
+        defaultRoomId: defaultRoomId || 'fpstudio',
+        defaultRoomName: defaultRoomName || 'FPStudio Salvador',
+        durationHours: durationHours !== undefined ? Number(durationHours) : 2,
+        basePrice: basePrice !== undefined ? Number(basePrice) : 0,
+        iconName: iconName || 'Music2',
+        imageUrl: imageUrl || 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&auto=format&fit=crop&q=80',
+      };
+      services.push(newService);
+      saveDb();
+      broadcastEvent('service_created', newService);
+      return res.json({ success: true, service: newService });
+    }
+
     const updated: StudioService = {
       ...services[serviceIndex],
       ...(name !== undefined && { name }),

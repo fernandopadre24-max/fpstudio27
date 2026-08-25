@@ -228,7 +228,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     boxShadow: isActive ? (isStudioMode ? '0 0 15px rgba(56,189,248,0.5)' : `0 0 15px ${currentAccent.hex}50`) : undefined,
                   }}
                 >
-                  <span className="shrink-0">{item.icon}</span>
                   {item.sublabel ? (
                     <span className="flex flex-col text-left leading-[1.05]">
                       <span className="text-[11px] lg:text-xs font-black tracking-tight">{item.label}</span>
@@ -237,6 +236,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ) : item.label ? (
                     <span>{item.label}</span>
                   ) : null}
+                  <span className="shrink-0">{item.icon}</span>
                 </button>
               );
             })}
@@ -299,8 +299,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 hover:text-white font-black text-xs transition flex items-center gap-1 cursor-pointer shadow-sm"
                   title="Mudar para Visão do Cliente"
                 >
-                  <User className="w-3.5 h-3.5 text-[#00FF41]" />
                   <span className="hidden sm:inline">Modo Cliente</span>
+                  <User className="w-3.5 h-3.5 text-[#00FF41]" />
                 </button>
 
                 <button
@@ -311,8 +311,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-full bg-rose-950/70 hover:bg-rose-900 border border-rose-800 text-rose-300 hover:text-white font-bold text-xs transition cursor-pointer flex items-center gap-1"
                   title="Sair do Modo ADM"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Sair ADM</span>
+                  <LogOut className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
@@ -343,11 +343,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {onLogoutClient && (
                       <button
                         onClick={onLogoutClient}
-                        className="p-1.5 sm:px-2 sm:py-1 rounded-full bg-zinc-900 hover:bg-rose-950 border border-zinc-800 hover:border-rose-500 text-zinc-400 hover:text-rose-300 text-[10px] font-bold transition cursor-pointer"
+                        className="p-1.5 sm:px-2 sm:py-1 rounded-full bg-zinc-900 hover:bg-rose-950 border border-zinc-800 hover:border-rose-500 text-zinc-400 hover:text-rose-300 text-[10px] font-bold transition cursor-pointer flex items-center gap-1"
                         title={t('nav_signout')}
                       >
-                        <LogOut className="w-3.5 h-3.5 sm:hidden" />
                         <span className="hidden sm:inline">{t('nav_signout')}</span>
+                        <LogOut className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
@@ -361,8 +361,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }}
                     title="Entrar ou Cadastrar-se para Agendar"
                   >
-                    <LogIn className="w-3.5 h-3.5 shrink-0" />
                     <span className="whitespace-nowrap font-black">{t('nav_signin')}</span>
+                    <LogIn className="w-3.5 h-3.5 shrink-0" />
                   </button>
                 )}
 
@@ -372,8 +372,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="px-2 sm:px-3 py-1.5 rounded-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 text-zinc-300 hover:text-sky-300 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                   title="Acesso de Funcionários / Administrador (PIN)"
                 >
-                  <Lock className="w-3.5 h-3.5 text-sky-400" />
                   <span className="hidden sm:inline">ADM (PIN)</span>
+                  <Lock className="w-3.5 h-3.5 text-sky-400" />
                 </button>
               </div>
             )}
@@ -510,12 +510,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   backgroundColor: isActive ? (isStudioMode ? '#38bdf8' : currentAccent.hex) : undefined,
                 }}
               >
-                <span
-                  className="shrink-0"
-                  style={{ color: isActive ? '#000000' : (isStudioMode ? '#38bdf8' : currentAccent.hex) }}
-                >
-                  {item.icon}
-                </span>
                 {item.sublabel ? (
                   <span className="flex items-center gap-0.5 truncate">
                     <span>{item.label}</span>
@@ -524,6 +518,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ) : (
                   <span>{item.label || item.title || 'PERFIL'}</span>
                 )}
+                <span
+                  className="shrink-0"
+                  style={{ color: isActive ? '#000000' : (isStudioMode ? '#38bdf8' : currentAccent.hex) }}
+                >
+                  {item.icon}
+                </span>
               </button>
             );
           })}
