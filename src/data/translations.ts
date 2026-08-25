@@ -46,6 +46,10 @@ export interface Translations {
   custom_preview_sample_badge: string;
   custom_btn_reset: string;
   custom_btn_apply: string;
+  theme_mode_dark: string;
+  theme_mode_light: string;
+  custom_mode_title: string;
+  custom_mode_desc: string;
 
   // Common UI
   btn_book_now: string;
@@ -130,6 +134,10 @@ export const translations: Record<Language, Translations> = {
     custom_preview_sample_badge: 'PRO-TOOLS INCLUSO',
     custom_btn_reset: 'Restaurar Padrão',
     custom_btn_apply: 'Concluído',
+    theme_mode_dark: 'Modo Escuro',
+    theme_mode_light: 'Modo Claro',
+    custom_mode_title: 'Modo de Luminosidade (Escuro / Claro)',
+    custom_mode_desc: 'Alterne rapidamente entre o tema Noturno de Estúdio e o Modo Claro de Alta Luminosidade.',
 
     // Common UI
     btn_book_now: 'Agendar Sessão',
@@ -212,6 +220,10 @@ export const translations: Record<Language, Translations> = {
     custom_preview_sample_badge: 'PRO-TOOLS INCLUDED',
     custom_btn_reset: 'Reset Defaults',
     custom_btn_apply: 'Done',
+    theme_mode_dark: 'Dark Mode',
+    theme_mode_light: 'Light Mode',
+    custom_mode_title: 'Brightness Mode (Dark / Light)',
+    custom_mode_desc: 'Quickly toggle between Studio Night Theme and High-Luminosity Light Mode.',
 
     // Common UI
     btn_book_now: 'Book Session',

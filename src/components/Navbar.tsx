@@ -24,6 +24,8 @@ import {
   Palette,
   Globe,
   Lock,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { Role, UserProfile, PushNotification } from '../types';
 import fpStudioLogo from '../assets/images/fpstudio_logo_1786495953533.jpg';
@@ -67,8 +69,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogoutClient,
   onLogoutStudio,
 }) => {
-  const { language, setLanguage, currentAccent, currentTheme, currentFont, t, setIsCustomModalOpen } =
-    useCustomization();
+  const {
+    colorMode,
+    toggleColorMode,
+    language,
+    setLanguage,
+    currentAccent,
+    currentTheme,
+    currentFont,
+    t,
+    setIsCustomModalOpen,
+  } = useCustomization();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -233,6 +244,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+
+            {/* Quick Light / Dark Mode Toggle Button */}
+            <button
+              onClick={toggleColorMode}
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-600 transition flex items-center justify-center cursor-pointer shadow-sm group hover:scale-105"
+              title={
+                colorMode === 'light'
+                  ? (language === 'en' ? 'Switch to Dark Mode' : 'Mudar para Modo Escuro')
+                  : (language === 'en' ? 'Switch to Light Mode' : 'Mudar para Modo Claro')
+              }
+            >
+              {colorMode === 'light' ? (
+                <Moon className="w-4 h-4 text-sky-400 transition group-hover:scale-110" />
+              ) : (
+                <Sun className="w-4 h-4 text-amber-400 transition group-hover:scale-110" />
+              )}
+            </button>
 
             {/* Quick Language Toggle Button (Icon Only with Flag) */}
             <button

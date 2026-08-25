@@ -10,11 +10,16 @@ export type AccentColor =
   | 'electric_purple'
   | 'arctic_white';
 
+export type ColorMode = 'dark' | 'light';
+
 export type ThemeStyle =
   | 'dark_studio'
   | 'midnight_blue'
   | 'charcoal_onyx'
-  | 'matrix_black';
+  | 'matrix_black'
+  | 'light_studio'
+  | 'light_warm'
+  | 'light_silver';
 
 export type FontFamily =
   | 'sans'
@@ -113,6 +118,7 @@ export const ACCENT_COLOR_OPTIONS: AccentColorOption[] = [
 
 export interface ThemeStyleOption {
   id: ThemeStyle;
+  mode: ColorMode;
   namePt: string;
   nameEn: string;
   bgHex: string;
@@ -124,8 +130,9 @@ export interface ThemeStyleOption {
 export const THEME_STYLE_OPTIONS: ThemeStyleOption[] = [
   {
     id: 'dark_studio',
-    namePt: 'Deep Studio (Padrão)',
-    nameEn: 'Deep Studio (Default)',
+    mode: 'dark',
+    namePt: 'Deep Studio (Padrão Escuro)',
+    nameEn: 'Deep Studio (Default Dark)',
     bgHex: '#09090B',
     cardHex: '#121216',
     descPt: 'Preto profundo e contrastes profissionais de estúdio.',
@@ -133,8 +140,9 @@ export const THEME_STYLE_OPTIONS: ThemeStyleOption[] = [
   },
   {
     id: 'midnight_blue',
-    namePt: 'Midnight Blue',
-    nameEn: 'Midnight Blue',
+    mode: 'dark',
+    namePt: 'Midnight Blue (Noturno)',
+    nameEn: 'Midnight Blue (Night)',
     bgHex: '#0B0F19',
     cardHex: '#111827',
     descPt: 'Azul noturno suave para gravação noturna e elegância.',
@@ -142,8 +150,9 @@ export const THEME_STYLE_OPTIONS: ThemeStyleOption[] = [
   },
   {
     id: 'charcoal_onyx',
-    namePt: 'Carvão Ônix (Charcoal)',
-    nameEn: 'Charcoal Onyx',
+    mode: 'dark',
+    namePt: 'Carvão Ônix (Grafite)',
+    nameEn: 'Charcoal Onyx (Graphite)',
     bgHex: '#18181B',
     cardHex: '#27272A',
     descPt: 'Cinza grafite sofisticado e aveludado.',
@@ -151,12 +160,43 @@ export const THEME_STYLE_OPTIONS: ThemeStyleOption[] = [
   },
   {
     id: 'matrix_black',
-    namePt: 'Cyber Matrix',
-    nameEn: 'Cyber Matrix',
+    mode: 'dark',
+    namePt: 'Cyber Matrix (Escuro)',
+    nameEn: 'Cyber Matrix (Dark)',
     bgHex: '#040d06',
     cardHex: '#081a0e',
     descPt: 'Estética com leve tom esmeralda escuro.',
     descEn: 'Emerald-tinted matrix darkness with high-tech vibes.',
+  },
+  {
+    id: 'light_studio',
+    mode: 'light',
+    namePt: 'Studio Clean Light (Claro)',
+    nameEn: 'Studio Clean Light (White)',
+    bgHex: '#F8FAFC',
+    cardHex: '#FFFFFF',
+    descPt: 'Ambiente claro, luminoso e limpo com alta legibilidade diurna.',
+    descEn: 'Bright, clean white environment with crisp daytime readability.',
+  },
+  {
+    id: 'light_warm',
+    mode: 'light',
+    namePt: 'Warm Off-White (Papel Suave)',
+    nameEn: 'Warm Off-White (Soft Paper)',
+    bgHex: '#FBFBF9',
+    cardHex: '#FFFFFF',
+    descPt: 'Tons claros suaves e confortáveis aos olhos sem ofuscamento.',
+    descEn: 'Soft warm light tones easy on the eyes without harsh glare.',
+  },
+  {
+    id: 'light_silver',
+    mode: 'light',
+    namePt: 'Prata Platinum (Claro Moderno)',
+    nameEn: 'Platinum Silver (Modern Light)',
+    bgHex: '#F1F5F9',
+    cardHex: '#FFFFFF',
+    descPt: 'Estética prata e platina com acabamento executivo moderno.',
+    descEn: 'Platinum silver aesthetic with modern executive finish.',
   },
 ];
 
@@ -277,6 +317,7 @@ export const FONT_SIZE_OPTIONS: FontSizeOption[] = [
 ];
 
 interface CustomizationSettings {
+  colorMode: ColorMode;
   language: Language;
   accentColor: AccentColor;
   themeStyle: ThemeStyle;
@@ -285,6 +326,7 @@ interface CustomizationSettings {
 }
 
 const DEFAULT_SETTINGS: CustomizationSettings = {
+  colorMode: 'dark',
   language: 'pt',
   accentColor: 'neon_green',
   themeStyle: 'dark_studio',
@@ -293,6 +335,7 @@ const DEFAULT_SETTINGS: CustomizationSettings = {
 };
 
 interface CustomizationContextValue {
+  colorMode: ColorMode;
   language: Language;
   accentColor: AccentColor;
   themeStyle: ThemeStyle;
@@ -302,6 +345,8 @@ interface CustomizationContextValue {
   currentTheme: ThemeStyleOption;
   currentFont: FontFamilyOption;
   currentSize: FontSizeOption;
+  setColorMode: (mode: ColorMode) => void;
+  toggleColorMode: () => void;
   setLanguage: (lang: Language) => void;
   setAccentColor: (accent: AccentColor) => void;
   setThemeStyle: (theme: ThemeStyle) => void;
@@ -322,7 +367,10 @@ export const CustomizationProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       const saved = safeStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved);
+        // Determine colorMode from parsed theme or property
+        const mode = parsed.colorMode || (parsed.themeStyle?.startsWith('light_') ? 'light' : 'dark');
+        return { ...DEFAULT_SETTINGS, ...parsed, colorMode: mode };
       }
     } catch (e) {
       console.error('Error parsing customization settings:', e);
@@ -351,21 +399,35 @@ export const CustomizationProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (e) {}
 
     const root = document.documentElement;
+    const isLight = settings.colorMode === 'light' || currentTheme.mode === 'light';
 
-    // 1. Accent Color Custom Properties
+    // 1. Color Mode Class Toggle (Light / Dark)
+    if (isLight) {
+      root.classList.add('light-mode');
+      root.classList.remove('dark-mode');
+      document.body.classList.add('light-mode');
+      document.body.classList.remove('dark-mode');
+    } else {
+      root.classList.add('dark-mode');
+      root.classList.remove('light-mode');
+      document.body.classList.add('dark-mode');
+      document.body.classList.remove('light-mode');
+    }
+
+    // 2. Accent Color Custom Properties
     root.style.setProperty('--brand-accent', currentAccent.hex);
     root.style.setProperty('--brand-accent-rgb', currentAccent.rgb);
     
-    // 2. Font Family
+    // 3. Font Family
     root.style.setProperty('--font-custom', currentFont.cssFamily);
     document.body.style.fontFamily = currentFont.cssFamily;
 
-    // 3. Theme Backgrounds
+    // 4. Theme Backgrounds
     root.style.setProperty('--bg-main', currentTheme.bgHex);
     root.style.setProperty('--bg-card', currentTheme.cardHex);
     document.body.style.backgroundColor = currentTheme.bgHex;
 
-    // 4. Font Size Scale class on root
+    // 5. Font Size Scale class on root
     root.classList.remove('text-scale-compact', 'text-scale-normal', 'text-scale-large', 'text-scale-xlarge');
     root.classList.add(`text-scale-${settings.fontSize}`);
 
@@ -380,6 +442,22 @@ export const CustomizationProvider: React.FC<{ children: React.ReactNode }> = ({
 
   }, [settings, currentAccent, currentTheme, currentFont, currentSize]);
 
+  const setColorMode = (colorMode: ColorMode) => {
+    setSettings((prev) => {
+      let nextTheme = prev.themeStyle;
+      if (colorMode === 'light' && !prev.themeStyle.startsWith('light_')) {
+        nextTheme = 'light_studio';
+      } else if (colorMode === 'dark' && prev.themeStyle.startsWith('light_')) {
+        nextTheme = 'dark_studio';
+      }
+      return { ...prev, colorMode, themeStyle: nextTheme };
+    });
+  };
+
+  const toggleColorMode = () => {
+    setColorMode(settings.colorMode === 'light' ? 'dark' : 'light');
+  };
+
   const setLanguage = (language: Language) => {
     setSettings((prev) => ({ ...prev, language }));
   };
@@ -389,7 +467,9 @@ export const CustomizationProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const setThemeStyle = (themeStyle: ThemeStyle) => {
-    setSettings((prev) => ({ ...prev, themeStyle }));
+    const selectedTheme = THEME_STYLE_OPTIONS.find((t) => t.id === themeStyle);
+    const mode = selectedTheme?.mode || (themeStyle.startsWith('light_') ? 'light' : 'dark');
+    setSettings((prev) => ({ ...prev, themeStyle, colorMode: mode }));
   };
 
   const setFontFamily = (fontFamily: FontFamily) => {
@@ -413,6 +493,7 @@ export const CustomizationProvider: React.FC<{ children: React.ReactNode }> = ({
   return (
     <CustomizationContext.Provider
       value={{
+        colorMode: settings.colorMode,
         language: settings.language,
         accentColor: settings.accentColor,
         themeStyle: settings.themeStyle,
@@ -422,6 +503,8 @@ export const CustomizationProvider: React.FC<{ children: React.ReactNode }> = ({
         currentTheme,
         currentFont,
         currentSize,
+        setColorMode,
+        toggleColorMode,
         setLanguage,
         setAccentColor,
         setThemeStyle,
@@ -434,7 +517,7 @@ export const CustomizationProvider: React.FC<{ children: React.ReactNode }> = ({
       }}
     >
       <div
-        className={`w-full min-h-screen transition-colors duration-300 ${currentSize.rootScaleClass}`}
+        className={`w-full min-h-screen transition-colors duration-300 ${currentSize.rootScaleClass} ${settings.colorMode === 'light' ? 'light-mode' : 'dark-mode'}`}
         style={{
           fontFamily: currentFont.cssFamily,
           backgroundColor: currentTheme.bgHex,

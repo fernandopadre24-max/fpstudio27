@@ -10,6 +10,7 @@ import {
   Sparkles,
   Sliders,
   Moon,
+  Sun,
   Eye,
   Layers,
 } from 'lucide-react';
@@ -20,6 +21,7 @@ import {
   FONT_FAMILY_OPTIONS,
   FONT_SIZE_OPTIONS,
   AccentColor,
+  ColorMode,
   ThemeStyle,
   FontFamily,
   FontSize,
@@ -29,6 +31,7 @@ import { FlagIcon } from './FlagIcon';
 
 export const CustomizationModal: React.FC = () => {
   const {
+    colorMode,
     language,
     accentColor,
     themeStyle,
@@ -38,6 +41,7 @@ export const CustomizationModal: React.FC = () => {
     currentTheme,
     currentFont,
     currentSize,
+    setColorMode,
     setLanguage,
     setAccentColor,
     setThemeStyle,
@@ -299,59 +303,161 @@ export const CustomizationModal: React.FC = () => {
           </div>
         )}
 
-        {/* Tab 3: THEME BACKGROUND */}
+        {/* Tab 3: THEME BACKGROUND & LIGHT/DARK MODE */}
         {activeTab === 'theme' && (
-          <div className="space-y-4 animate-in fade-in duration-150">
-            <div className="space-y-1">
-              <h3 className="font-black text-sm text-white uppercase tracking-wide flex items-center gap-2">
-                <Moon className="w-4 h-4" style={{ color: currentAccent.hex }} />
-                {t('custom_bg_title')}
-              </h3>
-              <p className="text-xs text-zinc-400">{t('custom_bg_desc')}</p>
+          <div className="space-y-5 animate-in fade-in duration-150">
+            {/* Color Mode Switcher Header */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="font-black text-sm text-white uppercase tracking-wide flex items-center gap-2">
+                  {colorMode === 'light' ? (
+                    <Sun className="w-4 h-4 text-amber-400" />
+                  ) : (
+                    <Moon className="w-4 h-4" style={{ color: currentAccent.hex }} />
+                  )}
+                  {t('custom_mode_title')}
+                </h3>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300">
+                  {colorMode === 'light' ? t('theme_mode_light') : t('theme_mode_dark')}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400">{t('custom_mode_desc')}</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              {THEME_STYLE_OPTIONS.map((opt) => {
-                const isSelected = themeStyle === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    onClick={() => setThemeStyle(opt.id)}
-                    className={`p-4 rounded-2xl border text-left transition-all space-y-2 cursor-pointer ${
-                      isSelected
-                        ? 'border-2 shadow-2xl'
-                        : 'border-zinc-800 hover:border-zinc-700'
-                    }`}
-                    style={{
-                      backgroundColor: opt.cardHex,
-                      borderColor: isSelected ? currentAccent.hex : undefined,
-                    }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="w-5 h-5 rounded-lg border border-zinc-700"
-                          style={{ backgroundColor: opt.bgHex }}
-                        />
-                        <h4 className="font-black text-xs text-white">
-                          {language === 'en' ? opt.nameEn : opt.namePt}
-                        </h4>
-                      </div>
-                      {isSelected && (
-                        <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center text-black"
-                          style={{ backgroundColor: currentAccent.hex }}
-                        >
-                          <Check className="w-3.5 h-3.5 font-bold" />
-                        </div>
-                      )}
+            {/* Quick Dark / Light Selector Cards */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Dark Mode Card */}
+              <button
+                onClick={() => setColorMode('dark')}
+                className={`p-4 rounded-2xl border text-left transition-all space-y-2 cursor-pointer ${
+                  colorMode === 'dark'
+                    ? 'bg-zinc-900 border-2 shadow-xl ring-2'
+                    : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700'
+                }`}
+                style={{
+                  borderColor: colorMode === 'dark' ? currentAccent.hex : undefined,
+                  outlineColor: colorMode === 'dark' ? `${currentAccent.hex}30` : undefined,
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-black border border-zinc-800 flex items-center justify-center text-zinc-200">
+                      <Moon className="w-4 h-4 text-sky-400" />
                     </div>
-                    <p className="text-[11px] text-zinc-400 leading-relaxed">
-                      {language === 'en' ? opt.descEn : opt.descPt}
-                    </p>
-                  </button>
-                );
-              })}
+                    <div>
+                      <h4 className="font-black text-xs text-white uppercase tracking-wider">
+                        {t('theme_mode_dark')}
+                      </h4>
+                      <span className="text-[10px] text-zinc-400">Deep Studio Night</span>
+                    </div>
+                  </div>
+                  {colorMode === 'dark' && (
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-black"
+                      style={{ backgroundColor: currentAccent.hex }}
+                    >
+                      <Check className="w-3.5 h-3.5 font-bold" />
+                    </div>
+                  )}
+                </div>
+              </button>
+
+              {/* Light Mode Card */}
+              <button
+                onClick={() => setColorMode('light')}
+                className={`p-4 rounded-2xl border text-left transition-all space-y-2 cursor-pointer ${
+                  colorMode === 'light'
+                    ? 'bg-zinc-900 border-2 shadow-xl ring-2'
+                    : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700'
+                }`}
+                style={{
+                  borderColor: colorMode === 'light' ? currentAccent.hex : undefined,
+                  outlineColor: colorMode === 'light' ? `${currentAccent.hex}30` : undefined,
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-300 flex items-center justify-center text-amber-500">
+                      <Sun className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-xs text-white uppercase tracking-wider">
+                        {t('theme_mode_light')}
+                      </h4>
+                      <span className="text-[10px] text-zinc-400">Clean Bright Mode</span>
+                    </div>
+                  </div>
+                  {colorMode === 'light' && (
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-black"
+                      style={{ backgroundColor: currentAccent.hex }}
+                    >
+                      <Check className="w-3.5 h-3.5 font-bold" />
+                    </div>
+                  )}
+                </div>
+              </button>
+            </div>
+
+            {/* Presets Grid */}
+            <div className="space-y-2 pt-2">
+              <h4 className="text-xs font-black text-zinc-300 uppercase tracking-wide">
+                {language === 'en' ? 'Preset Canvas Atmospheres' : 'Variações de Fundo & Atmosfera'}
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {THEME_STYLE_OPTIONS.map((opt) => {
+                  const isSelected = themeStyle === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => setThemeStyle(opt.id)}
+                      className={`p-3.5 rounded-2xl border text-left transition-all space-y-1.5 cursor-pointer ${
+                        isSelected
+                          ? 'border-2 shadow-2xl bg-zinc-900'
+                          : 'border-zinc-800 hover:border-zinc-700 bg-zinc-900/60'
+                      }`}
+                      style={{
+                        borderColor: isSelected ? currentAccent.hex : undefined,
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className="w-5 h-5 rounded-lg border border-zinc-600 shrink-0"
+                            style={{ backgroundColor: opt.bgHex }}
+                          />
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="font-black text-xs text-white">
+                              {language === 'en' ? opt.nameEn : opt.namePt}
+                            </h4>
+                            <span
+                              className={`text-[8.5px] font-black px-1.5 py-0.2 rounded uppercase ${
+                                opt.mode === 'light'
+                                  ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                  : 'bg-zinc-800 text-zinc-300'
+                              }`}
+                            >
+                              {opt.mode === 'light' ? 'Claro' : 'Escuro'}
+                            </span>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <div
+                            className="w-5 h-5 rounded-full flex items-center justify-center text-black shrink-0"
+                            style={{ backgroundColor: currentAccent.hex }}
+                          >
+                            <Check className="w-3.5 h-3.5 font-bold" />
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[10.5px] text-zinc-400 leading-relaxed">
+                        {language === 'en' ? opt.descEn : opt.descPt}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
