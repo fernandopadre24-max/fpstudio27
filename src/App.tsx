@@ -1309,10 +1309,6 @@ function AppContent() {
         onSelectRoleAndUser={handleSelectRoleAndUser}
         onCreateNewClient={handleCreateNewClient}
         adminCredentials={adminCredentials}
-        onOpenAdminSecurityModal={() => {
-          setIsAuthModalOpen(false);
-          setIsAdminSecurityModalOpen(true);
-        }}
       />
 
       {/* Admin Security & Credentials Modal */}

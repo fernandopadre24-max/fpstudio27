@@ -37,7 +37,6 @@ interface AuthModalProps {
   onSelectRoleAndUser: (role: Role, user: UserProfile) => void;
   onCreateNewClient: (clientData: Omit<UserProfile, 'id' | 'role'>) => void;
   adminCredentials?: AdminCredentials;
-  onOpenAdminSecurityModal?: () => void;
 }
 
 export interface StudioStaffUser {
@@ -83,7 +82,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onSelectRoleAndUser,
   onCreateNewClient,
   adminCredentials,
-  onOpenAdminSecurityModal,
 }) => {
   const [activeTab, setActiveTab] = useState<'studio' | 'client'>('studio');
   const [studioLoginMode, setStudioLoginMode] = useState<'pin' | 'email'>('pin');
@@ -643,37 +641,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               {/* Secondary Options */}
-              <div className="pt-3 space-y-2 border-t border-slate-800/80">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <button
-                    type="button"
-                    onClick={() => setStudioLoginMode('email')}
-                    className="hover:text-white underline text-[11px] flex items-center gap-1 cursor-pointer"
-                  >
-                    <Mail className="w-3 h-3 text-[#00FF41]" />
-                    <span>Entrar com E-mail e Senha</span>
-                  </button>
+              <div className="pt-3 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => setStudioLoginMode('email')}
+                  className="hover:text-white underline text-[11px] flex items-center gap-1 cursor-pointer"
+                >
+                  <Mail className="w-3 h-3 text-[#00FF41]" />
+                  <span>Entrar com E-mail e Senha</span>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={handleKeypadBackspace}
-                    className="hover:text-white text-[11px] flex items-center gap-1 cursor-pointer px-2 py-1 bg-slate-900/80 rounded-lg border border-slate-800"
-                  >
-                    <Delete className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Apagar (⌫)</span>
-                  </button>
-                </div>
-
-                {onOpenAdminSecurityModal && (
-                  <button
-                    type="button"
-                    onClick={onOpenAdminSecurityModal}
-                    className="w-full py-2.5 px-3 rounded-xl bg-sky-950/60 hover:bg-sky-900/80 border border-sky-500/40 text-sky-300 hover:text-white text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-sky-400" />
-                    <span>⚙️ Alterar Dados do ADM (Senha, PIN & Perfil)</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleKeypadBackspace}
+                  className="hover:text-white text-[11px] flex items-center gap-1 cursor-pointer px-2 py-1 bg-slate-900/80 rounded-lg border border-slate-800"
+                >
+                  <Delete className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Apagar (⌫)</span>
+                </button>
               </div>
             </div>
           )}
@@ -743,17 +728,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     Acessar Estúdio
                   </button>
                 </div>
-
-                {onOpenAdminSecurityModal && (
-                  <button
-                    type="button"
-                    onClick={onOpenAdminSecurityModal}
-                    className="w-full mt-2 py-2 px-3 rounded-xl bg-sky-950/40 hover:bg-sky-900/60 border border-sky-500/30 text-sky-300 hover:text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <KeyRound className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Alterar Dados / Senha do ADM</span>
-                  </button>
-                )}
               </form>
             </div>
           )}
