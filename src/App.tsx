@@ -163,7 +163,16 @@ function AppContent() {
   // Core Application State
   const [studioInfo, setStudioInfo] = useState<any>(INITIAL_STUDIO_INFO);
   const [rooms, setRooms] = useState<StudioRoom[]>(INITIAL_ROOMS);
-  const [services, setServices] = useState<StudioService[]>(INITIAL_SERVICES);
+  const [services, setServices] = useState<StudioService[]>(() => {
+    try {
+      const saved = safeStorage.getItem('fpstudio_services_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_SERVICES;
+  });
   const [clients, setClients] = useState<UserProfile[]>([]);
   const [activeClient, setActiveClient] = useState<UserProfile | null>(null);
 
@@ -651,12 +660,10 @@ function AppContent() {
     // 1. Update React state immediately for instant feedback
     setServices((prev) => {
       const next = prev.map((s) => (s.id === serviceData.id ? serviceData : s));
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('fpstudio_services_data', JSON.stringify(next));
-        } catch (e) {
-          console.warn('[App] LocalStorage quota:', e);
-        }
+      try {
+        safeStorage.setItem('fpstudio_services_data', JSON.stringify(next));
+      } catch (e) {
+        console.warn('[App] LocalStorage quota:', e);
       }
       return next;
     });

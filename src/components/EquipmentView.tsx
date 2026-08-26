@@ -102,13 +102,14 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
 
   // Services States
   const [serviceList, setServiceList] = useState<StudioService[]>(() => {
-    if (propServices && propServices.length > 0) return propServices;
     try {
       const saved = safeStorage.getItem('fpstudio_services_data');
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {}
+    if (propServices && propServices.length > 0) return propServices;
     return INITIAL_SERVICES;
   });
   const [serviceCategoryFilter, setServiceCategoryFilter] = useState<string>('Todos');
@@ -321,16 +322,15 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
 
       if (onUpdateService) {
         onUpdateService(updatedService);
-      } else {
-        try {
-          await fetch(`/api/services/${updatedService.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedService),
-          });
-        } catch (err) {
-          console.error('Error saving service to API:', err);
-        }
+      }
+      try {
+        await fetch(`/api/services/${updatedService.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedService),
+        });
+      } catch (err) {
+        console.error('Error saving service to API:', err);
       }
     } else {
       // Create new service
@@ -352,16 +352,15 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
 
       if (onCreateService) {
         onCreateService(newService);
-      } else {
-        try {
-          await fetch('/api/services', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newService),
-          });
-        } catch (err) {
-          console.error('Error creating service in API:', err);
-        }
+      }
+      try {
+        await fetch('/api/services', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newService),
+        });
+      } catch (err) {
+        console.error('Error creating service in API:', err);
       }
     }
 
@@ -377,12 +376,11 @@ export const EquipmentView: React.FC<EquipmentViewProps> = ({
 
     if (onDeleteService) {
       onDeleteService(id);
-    } else {
-      try {
-        await fetch(`/api/services/${id}`, { method: 'DELETE' });
-      } catch (err) {
-        console.error('Error deleting service from API:', err);
-      }
+    }
+    try {
+      await fetch(`/api/services/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Error deleting service from API:', err);
     }
 
     setServiceToDelete(null);

@@ -112,10 +112,23 @@ export const ClientView: React.FC<ClientViewProps> = ({
     );
   };
 
-  // Synchronize initial selections when props arrive
+  // Synchronize initial selections and live updates when services arrive
   React.useEffect(() => {
-    if (!selectedService && services && services.length > 0) {
-      setSelectedService(services[0]);
+    if (services && services.length > 0) {
+      if (!selectedService) {
+        setSelectedService(services[0]);
+      } else {
+        const found = services.find((s) => s.id === selectedService.id);
+        if (
+          found &&
+          (found.imageUrl !== selectedService.imageUrl ||
+            found.basePrice !== selectedService.basePrice ||
+            found.name !== selectedService.name ||
+            found.description !== selectedService.description)
+        ) {
+          setSelectedService(found);
+        }
+      }
     }
   }, [services, selectedService]);
 
