@@ -26,6 +26,8 @@ import {
   Lock,
   Sun,
   Moon,
+  ShieldCheck,
+  KeyRound,
 } from 'lucide-react';
 import { Role, UserProfile, PushNotification } from '../types';
 import fpStudioLogo from '../assets/images/fpstudio_logo_1786495953533.jpg';
@@ -46,6 +48,7 @@ interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onOpenAuthModal: () => void;
+  onOpenAdminSecurityModal?: () => void;
   isClientLoggedIn?: boolean;
   onLogoutClient?: () => void;
   onLogoutStudio?: () => void;
@@ -65,6 +68,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   onOpenAuthModal,
+  onOpenAdminSecurityModal,
   isClientLoggedIn = false,
   onLogoutClient,
   onLogoutStudio,
@@ -118,6 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'financials', label: language === 'en' ? 'Finances' : 'Financeiro', icon: <DollarSign className="w-3.5 h-3.5" /> },
     { id: 'ai_assistant', label: language === 'en' ? 'AI Assistant' : 'Assistente IA', icon: <Bot className="w-3.5 h-3.5" /> },
     { id: 'chat_budget', label: language === 'en' ? 'Chat & Quotes' : 'Chat & Orçamentos', icon: <MessageSquare className="w-3.5 h-3.5" /> },
+    { id: 'admin_security', label: language === 'en' ? 'Edit Admin Data' : 'Alterar Dados ADM', sublabel: language === 'en' ? 'Password & PIN' : 'Senha & PIN', icon: <ShieldCheck className="w-3.5 h-3.5 text-sky-400" /> },
   ];
 
   const currentNavItems = currentRole === 'studio' ? studioNavItems : clientNavItems;
@@ -284,15 +289,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             {isStudioMode ? (
               /* Studio ADM Controls */
               <div className="flex items-center gap-1.5">
-                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-xs text-slate-200">
+                <button
+                  onClick={() => {
+                    if (onOpenAdminSecurityModal) onOpenAdminSecurityModal();
+                    else setActiveTab('admin_security');
+                  }}
+                  className="hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-900 hover:bg-sky-950/80 border border-slate-700/80 hover:border-sky-500/60 text-xs text-slate-200 hover:text-white transition cursor-pointer shadow-sm group"
+                  title="Clique para Alterar Dados do ADM, Senha e PIN"
+                >
                   <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
-                  <span className="font-black text-sky-300 truncate max-w-[130px]">
+                  <span className="font-black text-sky-300 group-hover:text-white truncate max-w-[130px]">
                     {activeStaffUser?.name || 'Fernando Padre'}
                   </span>
-                  <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded">
-                    ADM
+                  <span className="text-[10px] text-black bg-sky-400 font-black px-1.5 py-0.2 rounded group-hover:scale-105 transition">
+                    ALTERAR DADOS ⚙️
                   </span>
-                </div>
+                </button>
 
                 <button
                   onClick={() => onRoleChange('client')}

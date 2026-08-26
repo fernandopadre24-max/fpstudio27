@@ -1,4 +1,14 @@
-import { StudioService, StudioRoom, UserProfile, BookingRequest, ChatMessage, PushNotification, TransactionRecord, PixQuote } from '../types';
+import { StudioService, StudioRoom, UserProfile, BookingRequest, ChatMessage, PushNotification, TransactionRecord, PixQuote, AdminCredentials } from '../types';
+
+export const INITIAL_ADMIN_CREDENTIALS: AdminCredentials = {
+  name: "Fernando Padre",
+  email: "fpstudio2027@gmail.com",
+  phone: "(71) 9 8118-4589",
+  password: "123456",
+  pin: "0000",
+  backupPins: ["0000", "1234", "123456"],
+  updatedAt: new Date().toISOString(),
+};
 
 export const INITIAL_STUDIO_INFO = {
   name: "FPStudio",

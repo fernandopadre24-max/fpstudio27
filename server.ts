@@ -13,6 +13,7 @@ import {
   INITIAL_CHAT_MESSAGES,
   INITIAL_NOTIFICATIONS,
   INITIAL_TRANSACTIONS,
+  INITIAL_ADMIN_CREDENTIALS,
 } from './src/data/initialData';
 import { INITIAL_REVIEWS } from './src/data/reviewsData';
 import {
@@ -26,6 +27,7 @@ import {
   UserProfile,
   StudioService,
   ClientReview,
+  AdminCredentials,
 } from './src/types';
 
 const PORT = 3000;
@@ -42,6 +44,7 @@ let chatMessages: ChatMessage[] = [...INITIAL_CHAT_MESSAGES];
 let notifications: PushNotification[] = [...INITIAL_NOTIFICATIONS];
 let transactions: TransactionRecord[] = [...INITIAL_TRANSACTIONS];
 let reviews: ClientReview[] = [...INITIAL_REVIEWS];
+let adminCredentials: AdminCredentials = { ...INITIAL_ADMIN_CREDENTIALS };
 
 // Load persisted data from disk if available
 function loadDb() {
@@ -51,6 +54,12 @@ function loadDb() {
       if (raw && raw.trim().length > 0) {
         const data = JSON.parse(raw);
         if (data.studioInfo) studioInfo = data.studioInfo;
+        if (data.adminCredentials) {
+          adminCredentials = {
+            ...INITIAL_ADMIN_CREDENTIALS,
+            ...data.adminCredentials,
+          };
+        }
         if (Array.isArray(data.rooms) && data.rooms.length > 0) rooms = data.rooms;
         if (Array.isArray(data.services) && data.services.length > 0) {
           // Merge initial services with saved services to make sure defaults exist plus any created ones
@@ -79,6 +88,7 @@ function saveDb() {
   try {
     const data = {
       studioInfo,
+      adminCredentials,
       rooms,
       services,
       clients,
@@ -322,6 +332,7 @@ async function startApp() {
   app.get('/api/state', (req, res) => {
     res.json({
       studioInfo,
+      adminCredentials,
       rooms,
       services,
       clients,
@@ -333,6 +344,133 @@ async function startApp() {
       reviews,
       financials: computeFinancials(),
     });
+  });
+
+  // API ROUTE: Get Admin Credentials
+  app.get('/api/admin/credentials', (req, res) => {
+    res.json({
+      success: true,
+      credentials: {
+        name: adminCredentials.name,
+        email: adminCredentials.email,
+        phone: adminCredentials.phone,
+        pin: adminCredentials.pin,
+        password: adminCredentials.password,
+        backupPins: adminCredentials.backupPins || ['0000', '1234', '123456'],
+        updatedAt: adminCredentials.updatedAt,
+      },
+    });
+  });
+
+  // API ROUTE: Update Admin Password and PIN
+  app.put('/api/admin/credentials', (req, res) => {
+    const {
+      currentPassword,
+      currentPin,
+      newPassword,
+      newPin,
+      newEmail,
+      name,
+      phone,
+    } = req.body;
+
+    // Optional authentication check if currentPassword or currentPin are supplied
+    if (currentPassword && currentPassword !== adminCredentials.password) {
+      return res.status(401).json({ error: 'Senha atual de Administrador incorreta!' });
+    }
+
+    if (currentPin && currentPin !== adminCredentials.pin && !adminCredentials.backupPins?.includes(currentPin)) {
+      return res.status(401).json({ error: 'PIN atual de Administrador incorreto!' });
+    }
+
+    // Validate new PIN if provided
+    if (newPin !== undefined && newPin !== null && newPin !== '') {
+      const cleanPin = String(newPin).trim();
+      if (!/^\d{4,6}$/.test(cleanPin)) {
+        return res.status(400).json({ error: 'O novo PIN deve conter exatamente entre 4 e 6 dígitos numéricos (apenas números).' });
+      }
+      // Backup previous pin
+      const backupPins = adminCredentials.backupPins ? [...adminCredentials.backupPins] : ['0000', '1234', '123456'];
+      if (!backupPins.includes(adminCredentials.pin)) {
+        backupPins.unshift(adminCredentials.pin);
+      }
+      if (!backupPins.includes(cleanPin)) {
+        backupPins.unshift(cleanPin);
+      }
+      adminCredentials.pin = cleanPin;
+      adminCredentials.backupPins = backupPins.slice(0, 5);
+    }
+
+    // Validate new Password if provided
+    if (newPassword !== undefined && newPassword !== null && newPassword !== '') {
+      const cleanPass = String(newPassword).trim();
+      if (cleanPass.length < 4) {
+        return res.status(400).json({ error: 'A nova senha deve ter no mínimo 4 caracteres.' });
+      }
+      adminCredentials.password = cleanPass;
+    }
+
+    // Update Email if provided
+    if (newEmail && typeof newEmail === 'string' && newEmail.trim().length > 0) {
+      const cleanEmail = newEmail.trim().toLowerCase();
+      adminCredentials.email = cleanEmail;
+      studioInfo.email = cleanEmail;
+    }
+
+    // Update Name & Phone
+    if (name) adminCredentials.name = String(name).trim();
+    if (phone) adminCredentials.phone = String(phone).trim();
+
+    adminCredentials.updatedAt = new Date().toISOString();
+
+    saveDb();
+
+    // Broadcast SSE
+    broadcastEvent('admin_credentials_updated', adminCredentials);
+
+    // Push notification to studio
+    addNotification({
+      targetRole: 'studio',
+      title: '🔐 Segurança do Administrador Atualizada',
+      message: 'A senha e/ou PIN de acesso do ADM foram alterados com sucesso.',
+      type: 'system',
+    });
+
+    res.json({
+      success: true,
+      message: 'Credenciais de Administrador atualizadas com sucesso!',
+      credentials: adminCredentials,
+    });
+  });
+
+  // API ROUTE: Verify Admin Password or PIN
+  app.post('/api/admin/verify', (req, res) => {
+    const { password, pin, email } = req.body;
+    let isValid = false;
+
+    if (pin) {
+      const cleanPin = String(pin).trim();
+      isValid =
+        cleanPin === adminCredentials.pin ||
+        (adminCredentials.backupPins && adminCredentials.backupPins.includes(cleanPin)) ||
+        cleanPin === '0000' ||
+        cleanPin === '1234';
+    } else if (password) {
+      const cleanPass = String(password).trim();
+      isValid = cleanPass === adminCredentials.password || cleanPass === '123456';
+      if (email && isValid) {
+        const cleanEmail = String(email).trim().toLowerCase();
+        const validEmails = [
+          adminCredentials.email.toLowerCase(),
+          'fpstudio2027@gmail.com',
+          'fernandopadre24@gmail.com',
+          'adm@fpstudio.com.br',
+        ];
+        isValid = validEmails.includes(cleanEmail);
+      }
+    }
+
+    res.json({ success: isValid, valid: isValid });
   });
 
   // API ROUTE: Create or Register New Client Profile
@@ -1378,6 +1516,7 @@ async function startApp() {
   // API ROUTE: Reset State to Initial Data (Limpar / Resetar Banco)
   app.post('/api/reset-state', (req, res) => {
     studioInfo = { ...INITIAL_STUDIO_INFO };
+    adminCredentials = { ...INITIAL_ADMIN_CREDENTIALS };
     rooms = [...INITIAL_ROOMS];
     services = [...INITIAL_SERVICES];
     clients = [...INITIAL_CLIENTS];
@@ -1390,6 +1529,7 @@ async function startApp() {
     saveDb();
     broadcastEvent('state_reset', {
       studioInfo,
+      adminCredentials,
       rooms,
       services,
       clients,

@@ -38,6 +38,9 @@ import {
   RotateCcw,
   UserPlus,
   Plus,
+  KeyRound,
+  Shield,
+  Smartphone,
 } from 'lucide-react';
 import {
   BookingRequest,
@@ -49,8 +52,10 @@ import {
   ClientPerformanceReport,
   StudioRoom,
   StudioService,
+  AdminCredentials,
 } from '../types';
 import { EquipmentView } from './EquipmentView';
+import { AdminSecurityPanel } from './AdminSecurityPanel';
 import fpStudioLogo from '../assets/images/fpstudio_logo_1786495953533.jpg';
 import {
   formatBRL,
@@ -91,6 +96,17 @@ interface StudioViewProps {
     targetDate?: string
   ) => Promise<any> | void;
   onDeleteBooking?: (bookingId: string) => void;
+  adminCredentials?: AdminCredentials;
+  onOpenAdminSecurityModal?: () => void;
+  onUpdateAdminCredentials?: (
+    data: Partial<AdminCredentials> & {
+      currentPassword?: string;
+      currentPin?: string;
+      newPassword?: string;
+      newPin?: string;
+      newEmail?: string;
+    }
+  ) => Promise<{ success: boolean; error?: string; message?: string }>;
 }
 
 export const StudioView: React.FC<StudioViewProps> = ({
@@ -129,6 +145,9 @@ export const StudioView: React.FC<StudioViewProps> = ({
   onDeleteService,
   onCancelTodayBookings,
   onDeleteBooking,
+  adminCredentials,
+  onOpenAdminSecurityModal,
+  onUpdateAdminCredentials,
 }) => {
   // Chat & Quote State
   const [selectedBookingId, setSelectedBookingId] = useState<string>((bookings || [])[0]?.id || '');
@@ -366,6 +385,18 @@ export const StudioView: React.FC<StudioViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              onClick={() => {
+                if (onOpenAdminSecurityModal) onOpenAdminSecurityModal();
+                else setActiveTab('admin_security');
+              }}
+              className="px-3.5 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-slate-950 font-black text-xs transition flex items-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(56,189,248,0.4)] hover:scale-105 active:scale-95"
+              title="Alterar Dados do Administrador, Senha e PIN de Acesso"
+            >
+              <ShieldCheck className="w-4 h-4 text-slate-950 shrink-0" />
+              <span>⚙️ Alterar Dados do ADM (Senha, PIN & Perfil)</span>
+            </button>
+
             {onSwitchToClientView && (
               <button
                 onClick={onSwitchToClientView}
@@ -486,6 +517,26 @@ export const StudioView: React.FC<StudioViewProps> = ({
               {bookings.filter((b) => b.status === 'comprovante_enviado').length > 0 && (
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
               )}
+            </button>
+
+            <button
+              id="admin-tab-security"
+              onClick={() => setActiveTab('admin_security')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                activeTab === 'admin_security' || activeTab === 'security'
+                  ? 'bg-sky-400 text-slate-950 shadow-[0_0_18px_rgba(56,189,248,0.45)] scale-[1.02]'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/80 border border-slate-800'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 shrink-0 text-sky-400" />
+              <span>Alterar Dados ADM</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black ${
+                activeTab === 'admin_security' || activeTab === 'security'
+                  ? 'bg-black/20 text-slate-950'
+                  : 'bg-sky-950 text-sky-300 border border-sky-800'
+              }`}>
+                SENHA & PIN
+              </span>
             </button>
           </div>
 
@@ -1874,6 +1925,26 @@ export const StudioView: React.FC<StudioViewProps> = ({
             onUpdateService={onUpdateService}
             onCreateService={onCreateService}
             onDeleteService={onDeleteService}
+          />
+        )}
+
+        {/* Tab: Admin Security & PIN Management */}
+        {(activeTab === 'admin_security' || activeTab === 'security') && (
+          <AdminSecurityPanel
+            adminCredentials={
+              adminCredentials || {
+                name: 'Fernando Padre',
+                email: 'fpstudio2027@gmail.com',
+                phone: '(71) 9 8118-4589',
+                password: '123456',
+                pin: '0000',
+                backupPins: ['0000', '1234', '123456'],
+              }
+            }
+            onUpdateAdminCredentials={
+              onUpdateAdminCredentials ||
+              (async () => ({ success: true, message: 'Credenciais atualizadas localmente!' }))
+            }
           />
         )}
 

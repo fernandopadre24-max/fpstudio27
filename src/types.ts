@@ -202,3 +202,13 @@ export interface ClientReview {
   tags?: string[];
   audioGenre?: string;
 }
+
+export interface AdminCredentials {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  pin: string;
+  backupPins?: string[];
+  updatedAt?: string;
+}

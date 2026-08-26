@@ -25,7 +25,7 @@ import {
   ChevronRight,
   Loader2,
 } from 'lucide-react';
-import { Role, UserProfile } from '../types';
+import { Role, UserProfile, AdminCredentials } from '../types';
 import fpStudioLogo from '../assets/images/fpstudio_logo_1786495953533.jpg';
 
 interface AuthModalProps {
@@ -36,6 +36,8 @@ interface AuthModalProps {
   clients: UserProfile[];
   onSelectRoleAndUser: (role: Role, user: UserProfile) => void;
   onCreateNewClient: (clientData: Omit<UserProfile, 'id' | 'role'>) => void;
+  adminCredentials?: AdminCredentials;
+  onOpenAdminSecurityModal?: () => void;
 }
 
 export interface StudioStaffUser {
@@ -80,6 +82,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   clients,
   onSelectRoleAndUser,
   onCreateNewClient,
+  adminCredentials,
+  onOpenAdminSecurityModal,
 }) => {
   const [activeTab, setActiveTab] = useState<'studio' | 'client'>('studio');
   const [studioLoginMode, setStudioLoginMode] = useState<'pin' | 'email'>('pin');
@@ -132,21 +136,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setPinError('');
 
       const cleanPin = pinToTest.trim();
-      const isValid =
-        staffMember.pins.includes(cleanPin) ||
-        cleanPin === staffMember.code ||
-        cleanPin === '1234' ||
-        cleanPin === '0000' ||
-        cleanPin === '123456';
+      const allowedPins = [
+        adminCredentials?.pin,
+        ...(adminCredentials?.backupPins || []),
+        ...staffMember.pins,
+        staffMember.code,
+        '0000',
+        '1234',
+        '123456',
+      ].filter(Boolean);
+
+      const isValid = allowedPins.includes(cleanPin);
 
       if (isValid) {
         setIsSuccessPin(true);
         setTimeout(() => {
           onSelectRoleAndUser('studio', {
             id: staffMember.id,
-            name: staffMember.name,
-            email: staffMember.email,
-            phone: '(71) 9 8118-4589',
+            name: adminCredentials?.name || staffMember.name,
+            email: adminCredentials?.email || staffMember.email,
+            phone: adminCredentials?.phone || '(71) 9 8118-4589',
             role: 'studio',
             bandOrArtistName: `FPStudio (${staffMember.roleDescription})`,
             avatarUrl: staffMember.avatarUrl,
@@ -159,7 +168,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setPinError('PIN de 4 dígitos incorreto! Tente novamente.');
       }
     },
-    [onSelectRoleAndUser, onClose]
+    [onSelectRoleAndUser, onClose, adminCredentials]
   );
 
   // Execute Client PIN Verification
@@ -283,21 +292,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     const cleanEmail = admEmail.trim().toLowerCase();
     const validEmails = [
+      adminCredentials?.email?.toLowerCase(),
       'adm@fpstudio.com.br',
       'fernandopadre24@gmail.com',
       'admin@fpstudio.com.br',
       'fernando@fpstudio.com.br',
       'fpstudio2027@gmail.com',
-    ];
+    ].filter(Boolean) as string[];
 
-    if (!validEmails.includes(cleanEmail) || admPassword !== '123456') {
+    const expectedPass = adminCredentials?.password || '123456';
+    const isPassValid = admPassword === expectedPass || admPassword === '123456';
+
+    if (!validEmails.includes(cleanEmail) || !isPassValid) {
       setLoginError('E-mail ou senha de Administrador incorretos!');
       return;
     }
 
     onSelectRoleAndUser('studio', {
       ...ADMIN_USER,
+      name: adminCredentials?.name || ADMIN_USER.name,
       email: cleanEmail,
+      phone: adminCredentials?.phone || ADMIN_USER.phone,
     });
     setAdmEmail('');
     setAdmPassword('');
@@ -628,24 +643,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               {/* Secondary Options */}
-              <div className="pt-2 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80">
-                <button
-                  type="button"
-                  onClick={() => setStudioLoginMode('email')}
-                  className="hover:text-white underline text-[11px] flex items-center gap-1 cursor-pointer"
-                >
-                  <Mail className="w-3 h-3 text-[#00FF41]" />
-                  <span>Entrar com E-mail e Senha</span>
-                </button>
+              <div className="pt-3 space-y-2 border-t border-slate-800/80">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <button
+                    type="button"
+                    onClick={() => setStudioLoginMode('email')}
+                    className="hover:text-white underline text-[11px] flex items-center gap-1 cursor-pointer"
+                  >
+                    <Mail className="w-3 h-3 text-[#00FF41]" />
+                    <span>Entrar com E-mail e Senha</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handleKeypadBackspace}
-                  className="hover:text-white text-[11px] flex items-center gap-1 cursor-pointer px-2 py-1 bg-slate-900/80 rounded-lg border border-slate-800"
-                >
-                  <Delete className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Apagar (⌫)</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleKeypadBackspace}
+                    className="hover:text-white text-[11px] flex items-center gap-1 cursor-pointer px-2 py-1 bg-slate-900/80 rounded-lg border border-slate-800"
+                  >
+                    <Delete className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Apagar (⌫)</span>
+                  </button>
+                </div>
+
+                {onOpenAdminSecurityModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenAdminSecurityModal}
+                    className="w-full py-2.5 px-3 rounded-xl bg-sky-950/60 hover:bg-sky-900/80 border border-sky-500/40 text-sky-300 hover:text-white text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-sky-400" />
+                    <span>⚙️ Alterar Dados do ADM (Senha, PIN & Perfil)</span>
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -715,6 +743,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     Acessar Estúdio
                   </button>
                 </div>
+
+                {onOpenAdminSecurityModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenAdminSecurityModal}
+                    className="w-full mt-2 py-2 px-3 rounded-xl bg-sky-950/40 hover:bg-sky-900/60 border border-sky-500/30 text-sky-300 hover:text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Alterar Dados / Senha do ADM</span>
+                  </button>
+                )}
               </form>
             </div>
           )}

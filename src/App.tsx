@@ -4,6 +4,7 @@ import { ClientView } from './components/ClientView';
 import { StudioView } from './components/StudioView';
 import { ReviewsView } from './components/ReviewsView';
 import { AuthModal, ADMIN_USER } from './components/AuthModal';
+import { AdminSecurityModal } from './components/AdminSecurityModal';
 import { CustomizationModal } from './components/CustomizationModal';
 import { CustomizationProvider, useCustomization } from './context/CustomizationContext';
 import { Footer } from './components/Footer';
@@ -21,11 +22,13 @@ import {
   TransactionRecord,
   FinancialSummary,
   ClientReview,
+  AdminCredentials,
 } from './types';
 import {
   INITIAL_STUDIO_INFO,
   INITIAL_ROOMS,
   INITIAL_SERVICES,
+  INITIAL_ADMIN_CREDENTIALS,
 } from './data/initialData';
 import { safeStorage } from './utils/safeStorage';
 
@@ -54,6 +57,7 @@ function AppContent() {
   });
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isAdminSecurityModalOpen, setIsAdminSecurityModalOpen] = useState<boolean>(false);
   const [isClientLoggedIn, setIsClientLoggedIn] = useState<boolean>(() => {
     try {
       const loggedIn = safeStorage.getItem('fpstudio_client_logged_in') === 'true';
@@ -259,6 +263,18 @@ function AppContent() {
   const [notifications, setNotifications] = useState<PushNotification[]>([]);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [reviews, setReviews] = useState<ClientReview[]>([]);
+  const [adminCredentials, setAdminCredentials] = useState<AdminCredentials>(() => {
+    try {
+      const saved = safeStorage.getItem('fpstudio_admin_credentials');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.password && parsed.pin) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return INITIAL_ADMIN_CREDENTIALS;
+  });
   const [financials, setFinancials] = useState<FinancialSummary>({
     totalRevenue: 0,
     monthlyRevenue: 0,
@@ -424,6 +440,13 @@ function AppContent() {
         const rawReviews: ClientReview[] = data.reviews || [];
         const uniqueReviews = Array.from(new Map(rawReviews.map((r) => [r.id, r])).values());
         setReviews(uniqueReviews);
+
+        if (data.adminCredentials && data.adminCredentials.password) {
+          setAdminCredentials(data.adminCredentials);
+          try {
+            safeStorage.setItem('fpstudio_admin_credentials', JSON.stringify(data.adminCredentials));
+          } catch (e) {}
+        }
 
         setFinancials(data.financials || {});
       })
@@ -1092,6 +1115,47 @@ function AppContent() {
     }
   };
 
+  const handleUpdateAdminCredentials = async (
+    data: Partial<AdminCredentials> & { currentPassword?: string; currentPin?: string }
+  ): Promise<{ success: boolean; error?: string; message?: string }> => {
+    try {
+      const res = await fetch('/api/admin/credentials', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        return { success: false, error: json.error || 'Falha ao atualizar credenciais do administrador' };
+      }
+      if (json.credentials) {
+        setAdminCredentials(json.credentials);
+        try {
+          safeStorage.setItem('fpstudio_admin_credentials', JSON.stringify(json.credentials));
+        } catch (e) {}
+      }
+      return { success: true, message: json.message || 'Senha e PIN atualizados com sucesso!' };
+    } catch (err: any) {
+      console.error('Error updating admin credentials:', err);
+      // Fallback local update if offline/network error
+      setAdminCredentials((prev) => {
+        const next: AdminCredentials = {
+          name: data.name || prev.name,
+          email: data.email || prev.email,
+          phone: data.phone || prev.phone,
+          password: data.password || prev.password,
+          pin: data.pin || prev.pin,
+          backupPins: data.backupPins || prev.backupPins,
+        };
+        try {
+          safeStorage.setItem('fpstudio_admin_credentials', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+      return { success: true, message: 'Credenciais atualizadas e salvas com sucesso!' };
+    }
+  };
+
   return (
     <div
       className="min-h-screen antialiased selection:text-black pb-12 transition-colors duration-300"
@@ -1123,6 +1187,7 @@ function AppContent() {
         activeTab={currentRole === 'client' ? clientActiveTab : studioActiveTab}
         setActiveTab={currentRole === 'client' ? setClientActiveTab : setStudioActiveTab}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenAdminSecurityModal={() => setIsAdminSecurityModalOpen(true)}
         isClientLoggedIn={isClientLoggedIn}
         onLogoutClient={handleLogoutClient}
         onLogoutStudio={handleLogoutStudio}
@@ -1198,6 +1263,9 @@ function AppContent() {
             onDeleteService={handleDeleteService}
             onCancelTodayBookings={handleCancelTodayBookings}
             onDeleteBooking={handleDeleteBooking}
+            adminCredentials={adminCredentials}
+            onUpdateAdminCredentials={handleUpdateAdminCredentials}
+            onOpenAdminSecurityModal={() => setIsAdminSecurityModalOpen(true)}
           />
         )}
       </main>
@@ -1240,6 +1308,19 @@ function AppContent() {
         clients={clients}
         onSelectRoleAndUser={handleSelectRoleAndUser}
         onCreateNewClient={handleCreateNewClient}
+        adminCredentials={adminCredentials}
+        onOpenAdminSecurityModal={() => {
+          setIsAuthModalOpen(false);
+          setIsAdminSecurityModalOpen(true);
+        }}
+      />
+
+      {/* Admin Security & Credentials Modal */}
+      <AdminSecurityModal
+        isOpen={isAdminSecurityModalOpen}
+        onClose={() => setIsAdminSecurityModalOpen(false)}
+        adminCredentials={adminCredentials}
+        onUpdateAdminCredentials={handleUpdateAdminCredentials}
       />
 
     </div>
