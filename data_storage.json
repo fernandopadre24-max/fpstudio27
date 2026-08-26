@@ -66,14 +66,14 @@
     {
       "id": "srv-autoral-com-arranjo",
       "name": "Música Autoral (Com Arranjo)",
-      "description": "Produção completa de composição autoral no FPStudio com criação de arranjo instrumental sob medida, captação multicanal e gravação no Pro-Tools.",
+      "description": "Produção completa de composição autoral no FPStudio com criação de arranjo instrumental, captação multicanal e gravação no Pro-Tools.",
       "category": "produção",
       "defaultRoomId": "room-a",
       "defaultRoomName": "Sala A - Gravação Principal & Produção",
       "durationHours": 4,
-      "basePrice": 1200,
+      "basePrice": 800,
       "iconName": "Music2",
-      "imageUrl": "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&auto=format&fit=crop&q=80"
+      "imageUrl": "/uploads/service-1787744040601-abp17.jpg"
     },
     {
       "id": "srv-autoral-sem-arranjo",
@@ -83,7 +83,7 @@
       "defaultRoomId": "room-a",
       "defaultRoomName": "Sala A - Gravação Principal & Produção",
       "durationHours": 2,
-      "basePrice": 550,
+      "basePrice": 500,
       "iconName": "Mic2",
       "imageUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80"
     },
@@ -95,43 +95,43 @@
       "defaultRoomId": "room-a",
       "defaultRoomName": "Sala A - Gravação Principal & Produção",
       "durationHours": 3,
-      "basePrice": 850,
+      "basePrice": 600,
       "iconName": "Sliders",
       "imageUrl": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80"
     },
     {
       "id": "srv-comum-sem-arranjo",
       "name": "Música Comum (Sem Arranjo)",
-      "description": "Captação rápida de voz e instrumentos para reprodução de música comum sobre playback/VS com alinhamento.",
+      "description": "Captação rápida de voz e instrumentos para reprodução de música comum sem alterações de arranjo.",
       "category": "gravação",
       "defaultRoomId": "room-b",
       "defaultRoomName": "Sala B - Estúdio de Instrumentos & Edição",
       "durationHours": 2,
-      "basePrice": 350,
+      "basePrice": 400,
       "iconName": "Disc3",
       "imageUrl": "https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?w=800&auto=format&fit=crop&q=80"
     },
     {
       "id": "srv-vinheta",
       "name": "Vinheta Profissional",
-      "description": "Criação, locução profissional, gravação, efeitos e edição de vinheta para comerciais, podcasts, rádio e redes sociais.",
+      "description": "Criação, locução, gravação e edição de vinheta para comerciais, podcasts, emissoras de rádio e redes sociais.",
       "category": "dublagem",
       "defaultRoomId": "room-c",
       "defaultRoomName": "Cabine Vocal & Edição de Vídeo",
       "durationHours": 1,
-      "basePrice": 280,
+      "basePrice": 250,
       "iconName": "Radio",
       "imageUrl": "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=800&auto=format&fit=crop&q=80"
     },
     {
       "id": "srv-edicao-afinacao",
       "name": "Edição de Bateria & Afinação de Voz",
-      "description": "Tratamento de áudio em Pro-Tools: quantização/alinhamento de bateria e afinação nota por nota de vozes no Melodyne Pro.",
+      "description": "Tratamento de áudio em Pro-Tools: quantização/alinhamento de bateria e afinação cirúrgica de vozes.",
       "category": "mix_master",
       "defaultRoomId": "room-c",
       "defaultRoomName": "Cabine Vocal & Edição de Vídeo",
       "durationHours": 2,
-      "basePrice": 350,
+      "basePrice": 300,
       "iconName": "AudioWaveform",
       "imageUrl": "https://images.unsplash.com/photo-1598653222000-6b7b7a552625?w=800&auto=format&fit=crop&q=80"
     },
@@ -160,7 +160,28 @@
       "imageUrl": "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&auto=format&fit=crop&q=80"
     }
   ],
-  "clients": [],
+  "clients": [
+    {
+      "id": "client-1787749327517",
+      "name": "Fernando Padre",
+      "email": "fernandopadre24@gmail.com",
+      "phone": "(71) 98888-7777",
+      "role": "client",
+      "bandOrArtistName": "Fernando Padre Produções",
+      "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      "password": "1234",
+      "pixKey": "fernandopadre24@gmail.com",
+      "pixKeyType": "email",
+      "cpf": "",
+      "rg": "",
+      "address": "",
+      "city": "Salvador - BA",
+      "state": "BA",
+      "cep": "",
+      "instagram": "",
+      "notes": ""
+    }
+  ],
   "bookings": [],
   "quotes": [],
   "chatMessages": [],

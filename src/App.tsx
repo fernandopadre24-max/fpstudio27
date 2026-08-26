@@ -108,27 +108,73 @@ function AppContent() {
   };
 
   const handleUpdateClientProfile = async (updatedData: Partial<UserProfile>) => {
-    if (!activeClient?.id) return;
+    let clientToUpdate = activeClient;
+    if (!clientToUpdate?.id) {
+      try {
+        const res = await fetch('/api/clients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedData),
+        });
+        const data = await res.json();
+        if (data.success && data.client) {
+          setActiveClient(data.client);
+          setClients((prev) => {
+            const next = [data.client, ...prev.filter((c) => c.id !== data.client.id)];
+            try {
+              safeStorage.setItem('fpstudio_clients_data', JSON.stringify(next));
+            } catch (e) {}
+            return next;
+          });
+          safeStorage.setItem('fpstudio_client_logged_in', 'true');
+          safeStorage.setItem('fpstudio_active_client_id', data.client.id);
+          safeStorage.setItem('fpstudio_active_client_data', JSON.stringify(data.client));
+        }
+        return;
+      } catch (err) {
+        console.error('Error creating client profile on save:', err);
+        return;
+      }
+    }
+
     const mergedClient: UserProfile = {
-      ...activeClient,
+      ...clientToUpdate,
       ...updatedData,
     };
 
     // 1. Optimistic update in UI
     setActiveClient(mergedClient);
-    setClients((prev) => prev.map((c) => (c.id === mergedClient.id ? mergedClient : c)));
+    setClients((prev) => {
+      const next = prev.map((c) => (c.id === mergedClient.id ? mergedClient : c));
+      try {
+        safeStorage.setItem('fpstudio_clients_data', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+    try {
+      safeStorage.setItem('fpstudio_active_client_data', JSON.stringify(mergedClient));
+    } catch (e) {}
 
     // 2. Persist to server
     try {
       const res = await fetch(`/api/clients/${mergedClient.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedData),
+        body: JSON.stringify(mergedClient),
       });
       const data = await res.json();
       if (data.success && data.client) {
         setActiveClient(data.client);
-        setClients((prev) => prev.map((c) => (c.id === data.client.id ? data.client : c)));
+        setClients((prev) => {
+          const next = prev.map((c) => (c.id === data.client.id ? data.client : c));
+          try {
+            safeStorage.setItem('fpstudio_clients_data', JSON.stringify(next));
+          } catch (e) {}
+          return next;
+        });
+        try {
+          safeStorage.setItem('fpstudio_active_client_data', JSON.stringify(data.client));
+        } catch (e) {}
       }
     } catch (err) {
       console.error('Error updating client profile:', err);
@@ -144,15 +190,28 @@ function AppContent() {
       });
       const data = await res.json();
       if (data.success && data.client) {
-        setClients((prev) => [data.client, ...prev]);
-        setActiveClient(data.client);
-        setIsClientLoggedIn(true);
-        safeStorage.setItem('fpstudio_client_logged_in', 'true');
-        safeStorage.setItem('fpstudio_active_client_id', data.client.id);
-        handleRoleChange('client');
-        setClientActiveTab('new_booking');
-        if (typeof window !== 'undefined') {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+        setClients((prev) => {
+          const next = [data.client, ...prev.filter((c) => c.id !== data.client.id)];
+          try {
+            safeStorage.setItem('fpstudio_clients_data', JSON.stringify(next));
+          } catch (e) {}
+          return next;
+        });
+
+        // Only switch view if current role is client
+        if (currentRole === 'client') {
+          setActiveClient(data.client);
+          setIsClientLoggedIn(true);
+          safeStorage.setItem('fpstudio_client_logged_in', 'true');
+          safeStorage.setItem('fpstudio_active_client_id', data.client.id);
+          try {
+            safeStorage.setItem('fpstudio_active_client_data', JSON.stringify(data.client));
+          } catch (e) {}
+          handleRoleChange('client');
+          setClientActiveTab('new_booking');
+          if (typeof window !== 'undefined') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
         }
       }
     } catch (err) {
@@ -173,8 +232,26 @@ function AppContent() {
     } catch (e) {}
     return INITIAL_SERVICES;
   });
-  const [clients, setClients] = useState<UserProfile[]>([]);
-  const [activeClient, setActiveClient] = useState<UserProfile | null>(null);
+  const [clients, setClients] = useState<UserProfile[]>(() => {
+    try {
+      const saved = safeStorage.getItem('fpstudio_clients_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+  const [activeClient, setActiveClient] = useState<UserProfile | null>(() => {
+    try {
+      const saved = safeStorage.getItem('fpstudio_active_client_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id) return parsed;
+      }
+    } catch (e) {}
+    return null;
+  });
 
   const [bookings, setBookings] = useState<BookingRequest[]>([]);
   const [quotes, setQuotes] = useState<PixQuote[]>([]);
@@ -268,12 +345,48 @@ function AppContent() {
         } catch (e) {}
         setServices(finalServices);
 
-        setClients(data.clients || []);
-        if (data.clients && data.clients.length > 0) {
+        // Merge Server Clients with Local Storage to ensure persistence across restarts
+        let finalClients: UserProfile[] = data.clients || [];
+        const localSavedClients = safeStorage.getItem('fpstudio_clients_data');
+        if (localSavedClients) {
+          try {
+            const parsedLocal = JSON.parse(localSavedClients);
+            if (Array.isArray(parsedLocal) && parsedLocal.length > 0) {
+              const clientsMap = new Map<string, UserProfile>();
+              finalClients.forEach((c) => clientsMap.set(c.id, c));
+              parsedLocal.forEach((localC: UserProfile) => {
+                if (localC && localC.id) {
+                  const existing = clientsMap.get(localC.id);
+                  if (!existing) {
+                    clientsMap.set(localC.id, localC);
+                    // Sync locally saved client to server so backend DB stays updated
+                    fetch('/api/clients', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(localC),
+                    }).catch(() => {});
+                  } else {
+                    const mergedC = { ...existing, ...localC };
+                    clientsMap.set(localC.id, mergedC);
+                  }
+                }
+              });
+              finalClients = Array.from(clientsMap.values());
+            }
+          } catch (e) {
+            console.warn('[App] Erro ao restaurar clientes do localStorage:', e);
+          }
+        }
+        try {
+          safeStorage.setItem('fpstudio_clients_data', JSON.stringify(finalClients));
+        } catch (e) {}
+        setClients(finalClients);
+
+        if (finalClients && finalClients.length > 0) {
           const savedId = safeStorage.getItem('fpstudio_active_client_id');
           const savedLoggedIn = safeStorage.getItem('fpstudio_client_logged_in') === 'true';
           if (savedLoggedIn && savedId) {
-            const match = data.clients.find((c: UserProfile) => c.id === savedId);
+            const match = finalClients.find((c: UserProfile) => c.id === savedId);
             if (match) {
               setActiveClient(match);
               setIsClientLoggedIn(true);
@@ -387,10 +500,31 @@ function AppContent() {
           }
         });
 
+        eventSource.addEventListener('new_client', (e: MessageEvent) => {
+          try {
+            const newClient: UserProfile = JSON.parse(e.data);
+            setClients((prev) => {
+              const next = [newClient, ...prev.filter((c) => c.id !== newClient.id)];
+              try {
+                safeStorage.setItem('fpstudio_clients_data', JSON.stringify(next));
+              } catch (err) {}
+              return next;
+            });
+          } catch (err) {
+            console.error('Error parsing SSE new_client:', err);
+          }
+        });
+
         eventSource.addEventListener('client_updated', (e: MessageEvent) => {
           try {
             const updatedClient: UserProfile = JSON.parse(e.data);
-            setClients((prev) => prev.map((c) => (c.id === updatedClient.id ? updatedClient : c)));
+            setClients((prev) => {
+              const next = prev.map((c) => (c.id === updatedClient.id ? updatedClient : c));
+              try {
+                safeStorage.setItem('fpstudio_clients_data', JSON.stringify(next));
+              } catch (err) {}
+              return next;
+            });
             setActiveClient((prev) => (prev && prev.id === updatedClient.id ? { ...prev, ...updatedClient } : prev));
           } catch (err) {
             console.error('Error parsing SSE client_updated:', err);
@@ -400,9 +534,27 @@ function AppContent() {
         eventSource.addEventListener('client_deleted', (e: MessageEvent) => {
           try {
             const { id } = JSON.parse(e.data);
-            setClients((prev) => prev.filter((c) => c.id !== id));
+            setClients((prev) => {
+              const next = prev.filter((c) => c.id !== id);
+              try {
+                safeStorage.setItem('fpstudio_clients_data', JSON.stringify(next));
+              } catch (err) {}
+              return next;
+            });
           } catch (err) {
             console.error('Error parsing SSE client_deleted:', err);
+          }
+        });
+
+        eventSource.addEventListener('clients_cleared', () => {
+          try {
+            setClients([]);
+            setActiveClient(null);
+            safeStorage.removeItem('fpstudio_clients_data');
+            safeStorage.removeItem('fpstudio_active_client_id');
+            safeStorage.removeItem('fpstudio_client_logged_in');
+          } catch (err) {
+            console.error('Error handling SSE clients_cleared:', err);
           }
         });
 
@@ -577,13 +729,26 @@ function AppContent() {
       });
       const data = await res.json();
       if (data.success) {
-        setClients((prev) => prev.filter((c) => c.id !== clientId));
+        setClients((prev) => {
+          const next = prev.filter((c) => c.id !== clientId);
+          try {
+            safeStorage.setItem('fpstudio_clients_data', JSON.stringify(next));
+          } catch (e) {}
+          return next;
+        });
         if (activeClient?.id === clientId) {
           const remaining = clients.filter((c) => c.id !== clientId);
           if (remaining.length > 0) {
             setActiveClient(remaining[0]);
+            safeStorage.setItem('fpstudio_active_client_id', remaining[0].id);
+            try {
+              safeStorage.setItem('fpstudio_active_client_data', JSON.stringify(remaining[0]));
+            } catch (e) {}
           } else {
             setActiveClient(null);
+            safeStorage.removeItem('fpstudio_active_client_id');
+            safeStorage.removeItem('fpstudio_active_client_data');
+            safeStorage.removeItem('fpstudio_client_logged_in');
           }
         }
       }
@@ -601,7 +766,9 @@ function AppContent() {
       if (data.success) {
         setClients([]);
         setActiveClient(null);
+        safeStorage.removeItem('fpstudio_clients_data');
         safeStorage.removeItem('fpstudio_active_client_id');
+        safeStorage.removeItem('fpstudio_active_client_data');
         safeStorage.removeItem('fpstudio_client_logged_in');
       }
     } catch (err) {

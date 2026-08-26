@@ -338,6 +338,7 @@ async function startApp() {
   // API ROUTE: Create or Register New Client Profile
   app.post('/api/clients', (req, res) => {
     const {
+      id,
       name,
       email,
       phone,
@@ -359,23 +360,24 @@ async function startApp() {
       return res.status(400).json({ error: 'Nome e E-mail são obrigatórios' });
     }
 
-    let existing = clients.find((c) => c.email.toLowerCase() === email.toLowerCase());
+    let existing = clients.find((c) => (id && c.id === id) || c.email.toLowerCase() === email.toLowerCase());
 
     if (existing) {
       existing.name = name || existing.name;
       existing.phone = phone || existing.phone;
       existing.bandOrArtistName = bandOrArtistName || existing.bandOrArtistName;
+      if (avatarUrl) existing.avatarUrl = avatarUrl;
       if (password) existing.password = password;
       if (pixKey !== undefined) existing.pixKey = pixKey;
       if (pixKeyType !== undefined) existing.pixKeyType = pixKeyType;
-      if (cpf) existing.cpf = cpf;
-      if (rg) existing.rg = rg;
-      if (address) existing.address = address;
-      if (city) existing.city = city;
-      if (state) existing.state = state;
-      if (cep) existing.cep = cep;
-      if (instagram) existing.instagram = instagram;
-      if (notes) existing.notes = notes;
+      if (cpf !== undefined) existing.cpf = cpf;
+      if (rg !== undefined) existing.rg = rg;
+      if (address !== undefined) existing.address = address;
+      if (city !== undefined) existing.city = city;
+      if (state !== undefined) existing.state = state;
+      if (cep !== undefined) existing.cep = cep;
+      if (instagram !== undefined) existing.instagram = instagram;
+      if (notes !== undefined) existing.notes = notes;
 
       saveDb();
       broadcastEvent('client_updated', existing);
@@ -383,24 +385,24 @@ async function startApp() {
     }
 
     const newClient: UserProfile = {
-      id: `client-${Date.now()}`,
-      name,
-      email,
+      id: id || `client-${Date.now()}`,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
       phone: phone || '(71) 90000-0000',
       role: 'client',
       bandOrArtistName: bandOrArtistName || name,
       avatarUrl: avatarUrl || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
-      password: password || '',
+      password: password || '1234',
       pixKey: pixKey || '',
       pixKeyType: pixKeyType || 'cpf',
-      cpf,
-      rg,
-      address,
-      city,
-      state,
-      cep,
-      instagram,
-      notes,
+      cpf: cpf || '',
+      rg: rg || '',
+      address: address || '',
+      city: city || 'Salvador - BA',
+      state: state || 'BA',
+      cep: cep || '',
+      instagram: instagram || '',
+      notes: notes || '',
     };
 
     clients.unshift(newClient);
@@ -412,11 +414,7 @@ async function startApp() {
   // API ROUTE: Update Client Profile
   app.put('/api/clients/:id', (req, res) => {
     const { id } = req.params;
-    const client = clients.find((c) => c.id === id);
-    if (!client) {
-      return res.status(404).json({ error: 'Cliente não encontrado' });
-    }
-
+    let client = clients.find((c) => c.id === id);
     const {
       name,
       email,
@@ -436,8 +434,39 @@ async function startApp() {
       notes,
     } = req.body;
 
+    if (!client && email) {
+      client = clients.find((c) => c.email.toLowerCase() === email.toLowerCase());
+    }
+
+    if (!client) {
+      const newClient: UserProfile = {
+        id: id || `client-${Date.now()}`,
+        name: name || 'Novo Cliente',
+        email: (email || `cliente_${Date.now()}@fpstudio.com`).toLowerCase(),
+        phone: phone || '(71) 90000-0000',
+        role: 'client',
+        bandOrArtistName: bandOrArtistName || name || 'Novo Artista',
+        avatarUrl: avatarUrl || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+        password: password || '1234',
+        pixKey: pixKey || '',
+        pixKeyType: pixKeyType || 'cpf',
+        cpf: cpf || '',
+        rg: rg || '',
+        address: address || '',
+        city: city || 'Salvador - BA',
+        state: state || 'BA',
+        cep: cep || '',
+        instagram: instagram || '',
+        notes: notes || '',
+      };
+      clients.unshift(newClient);
+      saveDb();
+      broadcastEvent('new_client', newClient);
+      return res.json({ success: true, client: newClient });
+    }
+
     if (name) client.name = name;
-    if (email) client.email = email;
+    if (email) client.email = email.toLowerCase();
     if (phone) client.phone = phone;
     if (bandOrArtistName) client.bandOrArtistName = bandOrArtistName;
     if (avatarUrl) client.avatarUrl = avatarUrl;
