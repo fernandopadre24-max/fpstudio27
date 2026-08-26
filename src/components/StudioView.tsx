@@ -86,6 +86,7 @@ interface StudioViewProps {
   onConfirmPayment: (bookingId: string) => void;
   onDeleteClient?: (clientId: string) => void;
   onCreateClient?: (clientData: any) => Promise<any> | void;
+  onUpdateClient?: (clientData: Partial<UserProfile> & { id: string }) => Promise<any> | void;
   onClearAllClients?: () => Promise<any> | void;
   onUpdateService?: (service: StudioService) => void;
   onCreateService?: (service: Partial<StudioService>) => void;
@@ -139,6 +140,7 @@ export const StudioView: React.FC<StudioViewProps> = ({
   onConfirmPayment,
   onDeleteClient,
   onCreateClient,
+  onUpdateClient,
   onClearAllClients,
   onUpdateService,
   onCreateService,
@@ -173,11 +175,15 @@ export const StudioView: React.FC<StudioViewProps> = ({
     email: '',
     phone: '',
     cpf: '',
+    rg: '',
     password: '1234',
     pixKey: '',
     pixKeyType: 'cpf' as 'cpf' | 'email' | 'telefone' | 'aleatoria',
     city: 'Salvador - BA',
+    state: 'BA',
     address: '',
+    cep: '',
+    instagram: '',
     notes: '',
   });
 
@@ -193,10 +199,118 @@ export const StudioView: React.FC<StudioViewProps> = ({
   const [detailModalClient, setDetailModalClient] = useState<UserProfile | null>(null);
   const [clientToDelete, setClientToDelete] = useState<UserProfile | null>(null);
 
+  // Client Inline Edit in Detail Modal
+  const [isEditingDetailClient, setIsEditingDetailClient] = useState<boolean>(false);
+  const [isSavingDetailClient, setIsSavingDetailClient] = useState<boolean>(false);
+  const [editDetailSuccessMsg, setEditDetailSuccessMsg] = useState<string | null>(null);
+  const [editDetailErrorMsg, setEditDetailErrorMsg] = useState<string | null>(null);
+  const [editClientForm, setEditClientForm] = useState({
+    name: '',
+    bandOrArtistName: '',
+    email: '',
+    phone: '',
+    cpf: '',
+    rg: '',
+    password: '',
+    pixKey: '',
+    pixKeyType: 'cpf',
+    city: '',
+    state: '',
+    address: '',
+    cep: '',
+    instagram: '',
+    notes: '',
+  });
+
   // AI Assistant State
   const [aiPrompt, setAiPrompt] = useState<string>('');
   const [aiResponse, setAiResponse] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+
+  const handleOpenDetailModalClient = (c: UserProfile) => {
+    setDetailModalClient(c);
+    setIsEditingDetailClient(false);
+    setEditDetailSuccessMsg(null);
+    setEditDetailErrorMsg(null);
+    setEditClientForm({
+      name: c.name || '',
+      bandOrArtistName: c.bandOrArtistName || '',
+      email: c.email || '',
+      phone: c.phone || '',
+      cpf: c.cpf || '',
+      rg: c.rg || '',
+      password: c.password || '',
+      pixKey: c.pixKey || '',
+      pixKeyType: c.pixKeyType || 'cpf',
+      city: c.city || 'Salvador - BA',
+      state: c.state || 'BA',
+      address: c.address || '',
+      cep: c.cep || '',
+      instagram: c.instagram || '',
+      notes: c.notes || '',
+    });
+  };
+
+  const handleSaveEditedClient = async () => {
+    if (!detailModalClient) return;
+    if (!editClientForm.name.trim()) {
+      setEditDetailErrorMsg('O nome do responsável é obrigatório.');
+      return;
+    }
+    if (!editClientForm.email.trim()) {
+      setEditDetailErrorMsg('O e-mail de contato é obrigatório.');
+      return;
+    }
+
+    setIsSavingDetailClient(true);
+    setEditDetailErrorMsg(null);
+    try {
+      const updatedPayload: Partial<UserProfile> & { id: string } = {
+        ...detailModalClient,
+        id: detailModalClient.id,
+        name: editClientForm.name.trim(),
+        bandOrArtistName: editClientForm.bandOrArtistName.trim() || editClientForm.name.trim(),
+        email: editClientForm.email.trim().toLowerCase(),
+        phone: editClientForm.phone.trim(),
+        cpf: editClientForm.cpf.trim(),
+        rg: editClientForm.rg.trim(),
+        password: editClientForm.password.trim(),
+        pixKey: editClientForm.pixKey.trim(),
+        pixKeyType: editClientForm.pixKeyType as any,
+        city: editClientForm.city.trim(),
+        state: editClientForm.state.trim(),
+        address: editClientForm.address.trim(),
+        cep: editClientForm.cep.trim(),
+        instagram: editClientForm.instagram.trim(),
+        notes: editClientForm.notes.trim(),
+      };
+
+      if (onUpdateClient) {
+        await onUpdateClient(updatedPayload);
+      } else {
+        const res = await fetch(`/api/clients/${detailModalClient.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedPayload),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.error || 'Erro ao salvar alterações');
+        }
+      }
+
+      setDetailModalClient((prev) => (prev ? { ...prev, ...updatedPayload } : null));
+      setIsEditingDetailClient(false);
+      setEditDetailSuccessMsg('Dados do cliente atualizados e salvos com sucesso!');
+      confetti({ particleCount: 50, spread: 45, origin: { y: 0.5 } });
+      setTimeout(() => setEditDetailSuccessMsg(null), 4000);
+    } catch (err: any) {
+      console.error('Error updating client in modal:', err);
+      setEditDetailErrorMsg(err?.message || 'Erro ao atualizar dados do cliente.');
+    } finally {
+      setIsSavingDetailClient(false);
+    }
+  };
 
   // Filter Bookings by Status for Studio Inbox
   const [bookingFilterStatus, setBookingFilterStatus] = useState<string>('todos');
@@ -1657,7 +1771,7 @@ export const StudioView: React.FC<StudioViewProps> = ({
                             <td className="py-3 px-3 text-right">
                               <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
                                 <button
-                                  onClick={() => setDetailModalClient(c)}
+                                  onClick={() => handleOpenDetailModalClient(c)}
                                   className="px-3 py-1.5 bg-zinc-800 hover:bg-[#00FF41] hover:text-black text-[#00FF41] border border-[#00FF41]/30 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
@@ -1716,7 +1830,7 @@ export const StudioView: React.FC<StudioViewProps> = ({
                       <button
                         onClick={() => {
                           const clientObj = clients.find((c) => c.id === selectedClientId);
-                          if (clientObj) setDetailModalClient(clientObj);
+                          if (clientObj) handleOpenDetailModalClient(clientObj);
                         }}
                         className="px-4 py-2.5 bg-[#00FF41] hover:bg-[#00e038] text-black font-black text-xs rounded-xl shadow-[0_0_15px_rgba(0,255,65,0.3)] transition flex items-center gap-1.5 cursor-pointer"
                       >

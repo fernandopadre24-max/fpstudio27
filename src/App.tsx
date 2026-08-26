@@ -112,7 +112,9 @@ function AppContent() {
   };
 
   const handleUpdateClientProfile = async (updatedData: Partial<UserProfile>) => {
-    let clientToUpdate = activeClient;
+    const targetId = updatedData.id || activeClient?.id;
+    const clientToUpdate = targetId ? clients.find((c) => c.id === targetId) || activeClient : activeClient;
+
     if (!clientToUpdate?.id) {
       try {
         const res = await fetch('/api/clients', {
@@ -123,6 +125,7 @@ function AppContent() {
         const data = await res.json();
         if (data.success && data.client) {
           setActiveClient(data.client);
+          setIsClientLoggedIn(true);
           setClients((prev) => {
             const next = [data.client, ...prev.filter((c) => c.id !== data.client.id)];
             try {
@@ -133,21 +136,27 @@ function AppContent() {
           safeStorage.setItem('fpstudio_client_logged_in', 'true');
           safeStorage.setItem('fpstudio_active_client_id', data.client.id);
           safeStorage.setItem('fpstudio_active_client_data', JSON.stringify(data.client));
+          return data.client;
         }
-        return;
       } catch (err) {
         console.error('Error creating client profile on save:', err);
-        return;
       }
+      return;
     }
 
     const mergedClient: UserProfile = {
       ...clientToUpdate,
       ...updatedData,
+      id: clientToUpdate.id,
     };
 
-    // 1. Optimistic update in UI
-    setActiveClient(mergedClient);
+    // 1. Optimistic update in UI & Local Storage
+    if (activeClient?.id === mergedClient.id) {
+      setActiveClient(mergedClient);
+      try {
+        safeStorage.setItem('fpstudio_active_client_data', JSON.stringify(mergedClient));
+      } catch (e) {}
+    }
     setClients((prev) => {
       const next = prev.map((c) => (c.id === mergedClient.id ? mergedClient : c));
       try {
@@ -155,9 +164,6 @@ function AppContent() {
       } catch (e) {}
       return next;
     });
-    try {
-      safeStorage.setItem('fpstudio_active_client_data', JSON.stringify(mergedClient));
-    } catch (e) {}
 
     // 2. Persist to server
     try {
@@ -168,7 +174,12 @@ function AppContent() {
       });
       const data = await res.json();
       if (data.success && data.client) {
-        setActiveClient(data.client);
+        if (activeClient?.id === data.client.id) {
+          setActiveClient(data.client);
+          try {
+            safeStorage.setItem('fpstudio_active_client_data', JSON.stringify(data.client));
+          } catch (e) {}
+        }
         setClients((prev) => {
           const next = prev.map((c) => (c.id === data.client.id ? data.client : c));
           try {
@@ -176,9 +187,7 @@ function AppContent() {
           } catch (e) {}
           return next;
         });
-        try {
-          safeStorage.setItem('fpstudio_active_client_data', JSON.stringify(data.client));
-        } catch (e) {}
+        return data.client;
       }
     } catch (err) {
       console.error('Error updating client profile:', err);
@@ -202,7 +211,7 @@ function AppContent() {
           return next;
         });
 
-        // Only switch view if current role is client
+        // If in client role or if logged in as client
         if (currentRole === 'client') {
           setActiveClient(data.client);
           setIsClientLoggedIn(true);
@@ -217,9 +226,13 @@ function AppContent() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }
         }
+        return data.client;
+      } else {
+        throw new Error(data.error || 'Erro ao cadastrar cliente');
       }
     } catch (err) {
       console.error('Error creating client:', err);
+      throw err;
     }
   };
 
@@ -1257,6 +1270,7 @@ function AppContent() {
             onConfirmPayment={handleConfirmPayment}
             onDeleteClient={handleDeleteClient}
             onCreateClient={handleCreateNewClient}
+            onUpdateClient={handleUpdateClientProfile}
             onClearAllClients={handleClearAllClients}
             onUpdateService={handleUpdateService}
             onCreateService={handleCreateService}
