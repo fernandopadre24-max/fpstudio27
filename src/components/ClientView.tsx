@@ -351,12 +351,17 @@ export const ClientView: React.FC<ClientViewProps> = ({
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedService) return;
+    const srv = selectedService || services?.[0] || {
+      id: 'srv-grava-producao',
+      name: 'Gravação & Produção Musical',
+      basePrice: 300,
+      durationHours: 2,
+    };
 
     const clientName = (isClientLoggedIn && activeClient?.name) || bookingClientName.trim() || 'Artista / Cliente';
     const bandName = (isClientLoggedIn && activeClient?.bandOrArtistName) || bookingBandName.trim() || clientName;
-    const clientPhone = (isClientLoggedIn && activeClient?.phone) || bookingClientPhone.trim() || '';
-    const clientEmail = (isClientLoggedIn && activeClient?.email) || bookingClientEmail.trim() || '';
+    const clientPhone = (isClientLoggedIn && activeClient?.phone) || bookingClientPhone.trim() || '(71) 99999-9999';
+    const clientEmail = (isClientLoggedIn && activeClient?.email) || bookingClientEmail.trim() || `cliente_${Date.now()}@fpstudio.com`;
 
     setIsSubmittingBooking(true);
 
@@ -365,7 +370,7 @@ export const ClientView: React.FC<ClientViewProps> = ({
       return acc + (opt ? opt.price : 0);
     }, 0);
 
-    const perTrackPrice = (selectedService?.basePrice || 0) + optionsTotal;
+    const perTrackPrice = (srv?.basePrice || 0) + optionsTotal;
     const estimatedTotal = perTrackPrice * tracksCount;
     const signalAmount = Math.round((estimatedTotal / 2) * 100) / 100;
 
@@ -392,12 +397,12 @@ export const ClientView: React.FC<ClientViewProps> = ({
         clientEmail,
         clientPhone,
         bandOrArtistName: bandName,
-        serviceId: selectedService.id,
+        serviceId: srv.id,
         roomId: 'fpstudio',
         roomName: 'FPStudio Salvador',
-        preferredDate: selectedDate,
-        startTime: selectedTime,
-        durationHours: selectedService.durationHours,
+        preferredDate: selectedDate || new Date().toISOString().slice(0, 10),
+        startTime: selectedTime || '14:00',
+        durationHours: srv.durationHours || 2,
         notes: fullNotes,
         totalAmount: estimatedTotal,
         paymentPlan,
@@ -421,7 +426,14 @@ export const ClientView: React.FC<ClientViewProps> = ({
           booking: result.booking,
           quote: result.quote,
         });
+        if (result.booking.id) {
+          setActiveBookingIdForChat(result.booking.id);
+        }
       } else {
+        const cleanPixKey = studioInfo?.pixKey || '36790486534';
+        const isSignal = paymentPlan === 'sinal_50';
+        const pixAmount = isSignal ? signalAmount : estimatedTotal;
+
         const tempBooking: BookingRequest = {
           id: `book-${Date.now()}`,
           clientId: activeClient?.id || 'client-novo',
@@ -429,13 +441,13 @@ export const ClientView: React.FC<ClientViewProps> = ({
           clientEmail,
           clientPhone,
           bandOrArtistName: bandName,
-          serviceId: selectedService.id,
-          serviceName: selectedService.name,
+          serviceId: srv.id,
+          serviceName: srv.name,
           roomId: 'fpstudio',
           roomName: 'FPStudio Salvador',
           preferredDate: selectedDate,
           startTime: selectedTime,
-          durationHours: selectedService.durationHours,
+          durationHours: srv.durationHours || 2,
           notes: fullNotes,
           status: 'orcamento_enviado',
           totalAmount: estimatedTotal,
@@ -444,9 +456,33 @@ export const ClientView: React.FC<ClientViewProps> = ({
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
+
+        const tempQuote: PixQuote = {
+          id: `quote-${Date.now()}`,
+          bookingId: tempBooking.id,
+          clientId: tempBooking.clientId,
+          clientName: tempBooking.bandOrArtistName || tempBooking.clientName,
+          serviceName: tempBooking.serviceName,
+          totalAmount: estimatedTotal,
+          pixKey: cleanPixKey,
+          pixKeyType: (studioInfo?.pixKeyType as any) || 'CPF',
+          pixPayload: `00020126580014BR.GOV.BCB.PIX0114${cleanPixKey}520400005303986540${pixAmount.toFixed(2)}5802BR5914FERNANDO PADRE6008SALVADOR62070503***6304ABCD`,
+          qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=00020126580014BR.GOV.BCB.PIX0114${cleanPixKey}`,
+          expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+          status: 'pending',
+          isSignalPayment: isSignal,
+          signalAmount: pixAmount,
+          paymentPlan,
+          notes: isSignal
+            ? `Orçamento com opção de Sinal PIX de 50% (${formatBRL(pixAmount)}) para garantia da reserva de horário.`
+            : `Orçamento oficial com chave PIX FPStudio gerado com sucesso.`,
+        };
+
         setBookingSuccessModalData({
           booking: tempBooking,
+          quote: tempQuote,
         });
+        setActiveBookingIdForChat(tempBooking.id);
       }
 
       setIsSubmittingBooking(false);
