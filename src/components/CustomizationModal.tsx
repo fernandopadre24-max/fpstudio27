@@ -63,8 +63,8 @@ export const CustomizationModal: React.FC = () => {
       <div
         className="border border-zinc-800 rounded-3xl shadow-2xl max-w-2xl w-full p-5 sm:p-7 space-y-6 my-6 text-white max-h-[92vh] overflow-y-auto transition-all"
         style={{
-          backgroundColor: currentTheme.cardHex,
-          fontFamily: currentFont.cssFamily,
+          backgroundColor: currentTheme?.cardHex || '#121216',
+          fontFamily: currentFont?.cssFamily || 'inherit',
         }}
       >
         {/* Header */}

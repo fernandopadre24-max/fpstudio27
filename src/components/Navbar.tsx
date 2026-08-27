@@ -151,8 +151,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           : 'border-zinc-800/90'
       }`}
       style={{
-        backgroundColor: isStudioMode ? '#0b1120f2' : `${currentTheme.cardHex}f0`,
-        fontFamily: currentFont.cssFamily,
+        backgroundColor: isStudioMode ? '#0b1120f2' : `${currentTheme?.cardHex || '#121216'}f0`,
+        fontFamily: currentFont?.cssFamily || 'inherit',
       }}
     >
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">

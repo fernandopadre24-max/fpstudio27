@@ -1190,9 +1190,9 @@ function AppContent() {
     <div
       className="min-h-screen antialiased selection:text-black pb-12 transition-colors duration-300"
       style={{
-        backgroundColor: currentTheme.bgHex,
+        backgroundColor: currentTheme?.bgHex || '#09090b',
         color: '#FFFFFF',
-        fontFamily: currentFont.cssFamily,
+        fontFamily: currentFont?.cssFamily || 'inherit',
       }}
     >
       {/* Top Navbar */}
@@ -1315,8 +1315,8 @@ function AppContent() {
           onClick={() => setIsCustomModalOpen(true)}
           className="w-8 h-8 rounded-full text-black transition flex items-center justify-center cursor-pointer shadow-lg group"
           style={{
-            backgroundColor: currentAccent.hex,
-            boxShadow: `0 0 16px ${currentAccent.hex}45`,
+            backgroundColor: currentAccent?.hex || '#00FF41',
+            boxShadow: `0 0 16px ${currentAccent?.hex || '#00FF41'}45`,
           }}
           title={t('custom_title')}
         >

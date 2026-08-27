@@ -128,6 +128,8 @@ export const ClientView: React.FC<ClientViewProps> = ({
   } | null>(null);
   const [copiedStudioPix, setCopiedStudioPix] = useState<boolean>(false);
   const [copiedModalPayload, setCopiedModalPayload] = useState<boolean>(false);
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Sync client profile fields when activeClient updates
   React.useEffect(() => {
@@ -283,8 +285,6 @@ export const ClientView: React.FC<ClientViewProps> = ({
     };
     reader.readAsDataURL(file);
   };
-
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -482,8 +482,6 @@ export const ClientView: React.FC<ClientViewProps> = ({
       setActivePixModalBooking(booking);
     }
   };
-
-  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
 
   const handleGoToServicos = () => {
     setActiveTab('new_booking');

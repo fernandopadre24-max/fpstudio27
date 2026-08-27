@@ -49,14 +49,14 @@ export const Footer: React.FC = () => {
     <footer
       className="text-zinc-300 border-t border-zinc-800/90 mt-16 pt-12 pb-8 px-4 sm:px-6 lg:px-8 relative overflow-hidden transition-colors"
       style={{
-        backgroundColor: currentTheme.cardHex,
-        fontFamily: currentFont.cssFamily,
+        backgroundColor: currentTheme?.cardHex || '#121216',
+        fontFamily: currentFont?.cssFamily || 'inherit',
       }}
     >
       {/* Background Accent Glows */}
       <div
         className="absolute top-0 left-1/4 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-10"
-        style={{ backgroundColor: currentAccent.hex }}
+        style={{ backgroundColor: currentAccent?.hex || '#00FF41' }}
       />
 
       <div className="max-w-7xl mx-auto relative z-10">
@@ -73,16 +73,16 @@ export const Footer: React.FC = () => {
                 referrerPolicy="no-referrer"
                 className="w-28 h-28 sm:w-32 sm:h-32 rounded-3xl object-cover border-2 shadow-2xl ring-4 shrink-0"
                 style={{
-                  borderColor: currentAccent.hex,
-                  boxShadow: `0 0 25px ${currentAccent.hex}35`,
-                  outlineColor: `${currentAccent.hex}25`,
+                  borderColor: currentAccent?.hex || '#00FF41',
+                  boxShadow: `0 0 25px ${currentAccent?.hex || '#00FF41'}35`,
+                  outlineColor: `${currentAccent?.hex || '#00FF41'}25`,
                 }}
               />
               <div>
                 <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-                  FP<span style={{ color: currentAccent.hex }}>STUDIO</span>
+                  FP<span style={{ color: currentAccent?.hex || '#00FF41' }}>STUDIO</span>
                 </h2>
-                <p className="text-xs font-bold uppercase tracking-wider mt-1" style={{ color: currentAccent.hex }}>
+                <p className="text-xs font-bold uppercase tracking-wider mt-1" style={{ color: currentAccent?.hex || '#00FF41' }}>
                   {language === 'en' ? '(Music Production)' : '(Produção Musical)'}
                 </p>
                 <span className="inline-block mt-2 px-2.5 py-0.5 rounded-md text-[10px] font-bold text-zinc-400 border border-zinc-800 uppercase tracking-wider">

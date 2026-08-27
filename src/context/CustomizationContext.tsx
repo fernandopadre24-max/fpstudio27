@@ -380,65 +380,82 @@ export const CustomizationProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
 
-  // Find current options
+  // Find current options with strict fallbacks
   const currentAccent =
-    ACCENT_COLOR_OPTIONS.find((a) => a.id === settings.accentColor) || ACCENT_COLOR_OPTIONS[0];
+    (settings?.accentColor && ACCENT_COLOR_OPTIONS.find((a) => a.id === settings.accentColor)) ||
+    ACCENT_COLOR_OPTIONS[0];
   const currentTheme =
-    THEME_STYLE_OPTIONS.find((t) => t.id === settings.themeStyle) || THEME_STYLE_OPTIONS[0];
+    (settings?.themeStyle && THEME_STYLE_OPTIONS.find((t) => t.id === settings.themeStyle)) ||
+    THEME_STYLE_OPTIONS[0];
   const currentFont =
-    FONT_FAMILY_OPTIONS.find((f) => f.id === settings.fontFamily) || FONT_FAMILY_OPTIONS[0];
+    (settings?.fontFamily && FONT_FAMILY_OPTIONS.find((f) => f.id === settings.fontFamily)) ||
+    FONT_FAMILY_OPTIONS[0];
   const currentSize =
-    FONT_SIZE_OPTIONS.find((s) => s.id === settings.fontSize) || FONT_SIZE_OPTIONS[1];
+    (settings?.fontSize && FONT_SIZE_OPTIONS.find((s) => s.id === settings.fontSize)) ||
+    FONT_SIZE_OPTIONS[1];
 
   // Save to localStorage and apply CSS rules to DOM
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
     try {
       safeStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     } catch (e) {}
 
     const root = document.documentElement;
-    const isLight = settings.colorMode === 'light' || currentTheme.mode === 'light';
+    const body = document.body;
+    if (!root || !body) return;
 
-    // 1. Color Mode Class Toggle (Light / Dark)
-    if (isLight) {
-      root.classList.add('light-mode');
-      root.classList.remove('dark-mode');
-      document.body.classList.add('light-mode');
-      document.body.classList.remove('dark-mode');
-    } else {
-      root.classList.add('dark-mode');
-      root.classList.remove('light-mode');
-      document.body.classList.add('dark-mode');
-      document.body.classList.remove('light-mode');
+    const isLight = settings?.colorMode === 'light' || currentTheme?.mode === 'light';
+
+    try {
+      // 1. Color Mode Class Toggle (Light / Dark)
+      if (isLight) {
+        root.classList.add('light-mode');
+        root.classList.remove('dark-mode');
+        body.classList.add('light-mode');
+        body.classList.remove('dark-mode');
+      } else {
+        root.classList.add('dark-mode');
+        root.classList.remove('light-mode');
+        body.classList.add('dark-mode');
+        body.classList.remove('light-mode');
+      }
+
+      // 2. Accent Color Custom Properties
+      if (currentAccent?.hex) {
+        root.style.setProperty('--brand-accent', currentAccent.hex);
+        root.style.setProperty('--brand-accent-rgb', currentAccent.rgb || '0, 255, 65');
+      }
+      
+      // 3. Font Family
+      if (currentFont?.cssFamily) {
+        root.style.setProperty('--font-custom', currentFont.cssFamily);
+        body.style.fontFamily = currentFont.cssFamily;
+      }
+
+      // 4. Theme Backgrounds
+      if (currentTheme?.bgHex) {
+        root.style.setProperty('--bg-main', currentTheme.bgHex);
+        root.style.setProperty('--bg-card', currentTheme.cardHex || '#121216');
+        body.style.backgroundColor = currentTheme.bgHex;
+      }
+
+      // 5. Font Size Scale class on root
+      root.classList.remove('text-scale-compact', 'text-scale-normal', 'text-scale-large', 'text-scale-xlarge');
+      root.classList.add(`text-scale-${settings?.fontSize || 'normal'}`);
+
+      // Set font scale CSS property
+      const scaleFactorMap: Record<FontSize, string> = {
+        compact: '0.92',
+        normal: '1',
+        large: '1.08',
+        xlarge: '1.16',
+      };
+      root.style.setProperty('--scale-factor', scaleFactorMap[settings?.fontSize as FontSize] || '1');
+    } catch (err) {
+      console.warn('[Customization] Error applying styles to DOM:', err);
     }
-
-    // 2. Accent Color Custom Properties
-    root.style.setProperty('--brand-accent', currentAccent.hex);
-    root.style.setProperty('--brand-accent-rgb', currentAccent.rgb);
-    
-    // 3. Font Family
-    root.style.setProperty('--font-custom', currentFont.cssFamily);
-    document.body.style.fontFamily = currentFont.cssFamily;
-
-    // 4. Theme Backgrounds
-    root.style.setProperty('--bg-main', currentTheme.bgHex);
-    root.style.setProperty('--bg-card', currentTheme.cardHex);
-    document.body.style.backgroundColor = currentTheme.bgHex;
-
-    // 5. Font Size Scale class on root
-    root.classList.remove('text-scale-compact', 'text-scale-normal', 'text-scale-large', 'text-scale-xlarge');
-    root.classList.add(`text-scale-${settings.fontSize}`);
-
-    // Set font scale CSS property
-    const scaleFactorMap: Record<FontSize, string> = {
-      compact: '0.92',
-      normal: '1',
-      large: '1.08',
-      xlarge: '1.16',
-    };
-    root.style.setProperty('--scale-factor', scaleFactorMap[settings.fontSize] || '1');
 
   }, [settings, currentAccent, currentTheme, currentFont, currentSize]);
 
@@ -486,23 +503,24 @@ export const CustomizationProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Translation helper function
   const t = (key: keyof Translations): string => {
-    const dict = translations[settings.language] || translations.pt;
-    return dict[key] || translations.pt[key] || String(key);
+    const lang = settings?.language || 'pt';
+    const dict = (translations && translations[lang]) || translations?.pt || ({} as any);
+    return dict[key] || translations?.pt?.[key] || String(key);
   };
 
   return (
     <CustomizationContext.Provider
       value={{
-        colorMode: settings.colorMode,
-        language: settings.language,
-        accentColor: settings.accentColor,
-        themeStyle: settings.themeStyle,
-        fontFamily: settings.fontFamily,
-        fontSize: settings.fontSize,
-        currentAccent,
-        currentTheme,
-        currentFont,
-        currentSize,
+        colorMode: settings?.colorMode || 'dark',
+        language: settings?.language || 'pt',
+        accentColor: settings?.accentColor || 'neon_green',
+        themeStyle: settings?.themeStyle || 'dark_studio',
+        fontFamily: settings?.fontFamily || 'sans',
+        fontSize: settings?.fontSize || 'normal',
+        currentAccent: currentAccent || ACCENT_COLOR_OPTIONS[0],
+        currentTheme: currentTheme || THEME_STYLE_OPTIONS[0],
+        currentFont: currentFont || FONT_FAMILY_OPTIONS[0],
+        currentSize: currentSize || FONT_SIZE_OPTIONS[1],
         setColorMode,
         toggleColorMode,
         setLanguage,
@@ -517,10 +535,10 @@ export const CustomizationProvider: React.FC<{ children: React.ReactNode }> = ({
       }}
     >
       <div
-        className={`w-full min-h-screen transition-colors duration-300 ${currentSize.rootScaleClass} ${settings.colorMode === 'light' ? 'light-mode' : 'dark-mode'}`}
+        className={`w-full min-h-screen transition-colors duration-300 ${currentSize?.rootScaleClass || 'text-scale-normal'} ${settings?.colorMode === 'light' ? 'light-mode' : 'dark-mode'}`}
         style={{
-          fontFamily: currentFont.cssFamily,
-          backgroundColor: currentTheme.bgHex,
+          fontFamily: currentFont?.cssFamily || 'inherit',
+          backgroundColor: currentTheme?.bgHex || '#09090b',
         }}
       >
         {children}

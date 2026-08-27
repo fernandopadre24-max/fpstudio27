@@ -91,6 +91,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [pinError, setPinError] = useState<string>('');
   const [isSuccessPin, setIsSuccessPin] = useState<boolean>(false);
   const [isRegisteringClient, setIsRegisteringClient] = useState(false);
+  const [isSubmittingClient, setIsSubmittingClient] = useState(false);
 
   // Email/Password Traditional Studio Login State
   const [admEmail, setAdmEmail] = useState('');
@@ -282,8 +283,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handleKeypadPress, handleKeypadBackspace, handleKeypadClear, handleKeypadSubmit]);
 
-  if (!isOpen) return null;
-
   const handleStudioEmailLogin = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setLoginError('');
@@ -330,8 +329,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const [isSubmittingClient, setIsSubmittingClient] = useState(false);
-
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     setClientRegError('');
@@ -376,6 +373,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setIsSubmittingClient(false);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
