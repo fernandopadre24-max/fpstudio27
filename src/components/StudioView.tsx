@@ -199,6 +199,17 @@ export const StudioView: React.FC<StudioViewProps> = ({
   const [detailModalClient, setDetailModalClient] = useState<UserProfile | null>(null);
   const [clientToDelete, setClientToDelete] = useState<UserProfile | null>(null);
 
+  // Synchronize selected client ID when clients list updates
+  React.useEffect(() => {
+    if (clients && clients.length > 0) {
+      if (!selectedClientId || !clients.some((c) => c.id === selectedClientId)) {
+        setSelectedClientId(clients[0].id);
+      }
+    } else {
+      setSelectedClientId('');
+    }
+  }, [clients, selectedClientId]);
+
   // Client Inline Edit in Detail Modal
   const [isEditingDetailClient, setIsEditingDetailClient] = useState<boolean>(false);
   const [isSavingDetailClient, setIsSavingDetailClient] = useState<boolean>(false);
@@ -2714,23 +2725,37 @@ export const StudioView: React.FC<StudioViewProps> = ({
                     email: newUserForm.email.trim().toLowerCase(),
                     phone: newUserForm.phone.trim() || '(71) 99999-0000',
                     cpf: newUserForm.cpf.trim(),
+                    rg: newUserForm.rg.trim(),
                     password: newUserForm.password.trim() || '1234',
                     pixKey: newUserForm.pixKey.trim(),
                     pixKeyType: newUserForm.pixKeyType,
                     city: newUserForm.city.trim() || 'Salvador - BA',
+                    state: newUserForm.state || 'BA',
                     address: newUserForm.address.trim(),
+                    cep: newUserForm.cep.trim(),
+                    instagram: newUserForm.instagram.trim(),
                     notes: newUserForm.notes.trim(),
                     avatarUrl: `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 5000)}?w=120&auto=format&fit=crop&q=80`,
                   };
 
+                  let createdResult: any = null;
                   if (onCreateClient) {
-                    await onCreateClient(clientPayload);
+                    createdResult = await onCreateClient(clientPayload);
                   } else {
-                    await fetch('/api/clients', {
+                    const res = await fetch('/api/clients', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(clientPayload),
                     });
+                    const data = await res.json();
+                    if (!data.success) {
+                      throw new Error(data.error || 'Erro ao cadastrar usuário');
+                    }
+                    createdResult = data.client;
+                  }
+
+                  if (createdResult && createdResult.id) {
+                    setSelectedClientId(createdResult.id);
                   }
 
                   confetti({ particleCount: 60, spread: 50, origin: { y: 0.6 } });
@@ -2742,11 +2767,15 @@ export const StudioView: React.FC<StudioViewProps> = ({
                     email: '',
                     phone: '',
                     cpf: '',
+                    rg: '',
                     password: '1234',
                     pixKey: '',
                     pixKeyType: 'cpf',
                     city: 'Salvador - BA',
+                    state: 'BA',
                     address: '',
+                    cep: '',
+                    instagram: '',
                     notes: '',
                   });
                   setTimeout(() => setUserCreateSuccessMsg(null), 5000);

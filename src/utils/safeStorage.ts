@@ -1,11 +1,15 @@
-// Safe Storage wrapper that gracefully falls back to memory if localStorage is restricted (e.g., inside sandboxed iframes)
+// Safe Storage wrapper that gracefully falls back to memory if localStorage is restricted (e.g., inside sandboxed iframes or private windows)
 const memoryStorage: Record<string, string> = {};
 
 export const safeStorage = {
   getItem: (key: string): string | null => {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        return window.localStorage.getItem(key);
+        const val = window.localStorage.getItem(key);
+        if (val !== null) {
+          memoryStorage[key] = val;
+          return val;
+        }
       }
     } catch (e) {
       // Storage access blocked or restricted
@@ -14,23 +18,22 @@ export const safeStorage = {
   },
 
   setItem: (key: string, value: string): void => {
+    memoryStorage[key] = value;
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem(key, value);
-        return;
       }
     } catch (e) {
       // Storage quota exceeded or restricted
     }
-    memoryStorage[key] = value;
   },
 
   removeItem: (key: string): void => {
+    delete memoryStorage[key];
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.removeItem(key);
       }
     } catch (e) {}
-    delete memoryStorage[key];
   },
 };

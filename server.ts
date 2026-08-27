@@ -759,7 +759,20 @@ async function startApp() {
 
   // API ROUTE: Request New Booking (Agendamento Online)
   app.post('/api/bookings/request', (req, res) => {
-    const { clientId, clientName, clientEmail, clientPhone, bandOrArtistName, serviceId, roomId, preferredDate, startTime, durationHours, notes } = req.body;
+    const {
+      clientId,
+      clientName,
+      clientEmail,
+      clientPhone,
+      bandOrArtistName,
+      serviceId,
+      roomId,
+      preferredDate,
+      startTime,
+      durationHours,
+      notes,
+      paymentPlan,
+    } = req.body;
 
     const service = services.find((s) => s.id === serviceId);
     const room = rooms.find((r) => r.id === roomId) || rooms[0];
@@ -770,22 +783,47 @@ async function startApp() {
       ? Number(req.body.totalAmount) 
       : baseTotal;
 
+    // Find or register client if new
+    let resolvedClientId = clientId;
+    let clientObj = clients.find((c) => c.id === clientId || (clientEmail && c.email.toLowerCase() === clientEmail.toLowerCase()));
+    
+    if (!clientObj && (clientName || clientEmail)) {
+      resolvedClientId = `client-${Date.now()}`;
+      clientObj = {
+        id: resolvedClientId,
+        name: clientName || 'Novo Cliente',
+        bandOrArtistName: bandOrArtistName || clientName || 'Artista',
+        email: (clientEmail || '').toLowerCase(),
+        phone: clientPhone || '',
+        role: 'client',
+        city: 'Salvador - BA',
+        state: 'BA',
+        password: '1234',
+        createdAt: new Date().toISOString(),
+      };
+      clients.push(clientObj);
+      saveDb();
+      broadcastEvent('new_client', clientObj);
+    } else if (clientObj) {
+      resolvedClientId = clientObj.id;
+    }
+
     const newBooking: BookingRequest = {
       id: `book-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-      clientId: clientId || 'client-alquimistas',
-      clientName: clientName || 'Lucas Mendes',
-      clientEmail: clientEmail || 'lucas@alquimistasbanda.com.br',
-      clientPhone: clientPhone || '(11) 97112-3344',
-      bandOrArtistName: bandOrArtistName || 'Banda Alquimistas',
-      serviceId: serviceId || services[0].id,
-      serviceName: service ? service.name : 'Sessão de Estúdio',
+      clientId: resolvedClientId || 'client-alquimistas',
+      clientName: clientName || clientObj?.name || 'Cliente FPStudio',
+      clientEmail: clientEmail || clientObj?.email || '',
+      clientPhone: clientPhone || clientObj?.phone || '',
+      bandOrArtistName: bandOrArtistName || clientObj?.bandOrArtistName || clientName || 'Artista',
+      serviceId: serviceId || (services[0] ? services[0].id : 'srv-default'),
+      serviceName: service ? service.name : 'Sessão de Gravação & Produção',
       roomId: room.id,
       roomName: room.name,
       preferredDate: preferredDate || new Date().toISOString().slice(0, 10),
       startTime: startTime || '14:00',
       durationHours: Number(durationHours) || (service ? service.durationHours : 2),
       notes: notes || '',
-      status: 'pendente_orcamento',
+      status: 'orcamento_enviado',
       totalAmount,
       discountAmount: 0,
       finalAmount: totalAmount,
@@ -794,6 +832,35 @@ async function startApp() {
     };
 
     bookings.unshift(newBooking);
+
+    // Auto-generate PIX Quote
+    const formatBRL = (val: number) => (Number(val) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const cleanPixKey = studioInfo.pixKey || '36790486534';
+    const isSignal = paymentPlan === 'sinal_50';
+    const pixAmount = isSignal ? Math.round((totalAmount / 2) * 100) / 100 : totalAmount;
+
+    const newQuote: PixQuote = {
+      id: `quote-${Date.now()}`,
+      bookingId: newBooking.id,
+      clientId: newBooking.clientId,
+      clientName: newBooking.bandOrArtistName || newBooking.clientName,
+      serviceName: newBooking.serviceName,
+      totalAmount,
+      pixKey: cleanPixKey,
+      pixKeyType: (studioInfo.pixKeyType as any) || 'CPF',
+      pixPayload: `00020126580014BR.GOV.BCB.PIX0114${cleanPixKey}520400005303986540${pixAmount.toFixed(2)}5802BR5914FERNANDO PADRE6008SALVADOR62070503***6304ABCD`,
+      qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=00020126580014BR.GOV.BCB.PIX0114${cleanPixKey}`,
+      expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+      status: 'pending',
+      isSignalPayment: isSignal,
+      signalAmount: pixAmount,
+      paymentPlan: paymentPlan || 'sinal_50',
+      notes: isSignal
+        ? `Orçamento com opção de Sinal PIX de 50% (${formatBRL(pixAmount)}) para garantia da reserva de horário.`
+        : `Orçamento oficial com chave PIX FPStudio gerado com sucesso.`,
+    };
+
+    quotes.unshift(newQuote);
     saveDb();
 
     // Initial system message in chat
@@ -807,7 +874,22 @@ async function startApp() {
       type: 'text',
       timestamp: new Date().toISOString(),
     };
+
     chatMessages.push(initialMsg);
+
+    // Studio PIX quote message in chat
+    const quoteMsg: ChatMessage = {
+      id: `msg-${Date.now() + 1}`,
+      bookingId: newBooking.id,
+      senderId: 'studio-admin',
+      senderRole: 'studio',
+      senderName: 'Fernando Padre (FPStudio)',
+      message: `Olá ${newBooking.bandOrArtistName || newBooking.clientName}! Recebemos sua solicitação. O orçamento para ${newBooking.serviceName} é de ${formatBRL(totalAmount)}.${isSignal ? ` Você pode antecipar 50% de sinal (${formatBRL(pixAmount)}) via PIX para garantir sua vaga!` : ''}\nChave PIX: ${cleanPixKey} (CPF - Nubank).`,
+      type: 'quote',
+      timestamp: new Date(Date.now() + 100).toISOString(),
+    };
+
+    chatMessages.push(quoteMsg);
     saveDb();
 
     // Send push notification to Studio
@@ -820,7 +902,16 @@ async function startApp() {
     });
 
     broadcastEvent('new_booking', newBooking);
-    res.json({ success: true, booking: newBooking });
+    broadcastEvent('new_quote', newQuote);
+    broadcastEvent('chat_message', initialMsg);
+    broadcastEvent('chat_message', quoteMsg);
+
+    res.json({
+      success: true,
+      booking: newBooking,
+      quote: newQuote,
+      client: clientObj,
+    });
   });
 
   // API ROUTE: Send Quote (Orçamento) + PIX Code from Studio to Client

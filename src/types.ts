@@ -19,6 +19,7 @@ export interface UserProfile {
   cep?: string;
   instagram?: string;
   notes?: string;
+  createdAt?: string;
 }
 
 export interface StudioService {
@@ -91,15 +92,18 @@ export interface PixQuote {
   serviceName: string;
   totalAmount: number;
   pixKey: string;
-  pixKeyType: 'CNPJ' | 'EVP' | 'E-mail' | 'Telefone';
+  pixKeyType: 'CNPJ' | 'EVP' | 'E-mail' | 'Telefone' | 'CPF' | string;
   pixPayload: string; // PIX copia e cola string
   qrCodeUrl?: string;
   expiresAt: string;
   notes?: string;
-  status: 'pending' | 'receipt_attached' | 'confirmed' | 'expired';
+  status: 'pending' | 'receipt_attached' | 'confirmed' | 'expired' | 'enviado';
+  isSignalPayment?: boolean;
+  signalAmount?: number;
+  paymentPlan?: string;
 }
 
-export type ChatMessageType = 'text' | 'quote' | 'receipt' | 'confirmation' | 'system';
+export type ChatMessageType = 'text' | 'quote' | 'receipt' | 'confirmation' | 'system' | 'quote_proposal' | 'receipt_attached';
 
 export interface ChatAttachment {
   name: string;

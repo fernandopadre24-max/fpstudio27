@@ -35,7 +35,7 @@ interface AuthModalProps {
   activeClient: UserProfile | null;
   clients: UserProfile[];
   onSelectRoleAndUser: (role: Role, user: UserProfile) => void;
-  onCreateNewClient: (clientData: Omit<UserProfile, 'id' | 'role'>) => void;
+  onCreateNewClient: (clientData: Omit<UserProfile, 'id' | 'role'>) => Promise<any> | any;
   adminCredentials?: AdminCredentials;
 }
 
@@ -330,7 +330,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleCreateClient = (e: React.FormEvent) => {
+  const [isSubmittingClient, setIsSubmittingClient] = useState(false);
+
+  const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     setClientRegError('');
 
@@ -344,25 +346,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    onCreateNewClient({
-      name: newName.trim(),
-      email: newEmail.trim().toLowerCase(),
-      phone: newPhone.trim() || '(71) 90000-0000',
-      bandOrArtistName: newBandName.trim() || newName.trim(),
-      password: newPassword,
-      pixKey: newPixKey.trim(),
-      pixKeyType: newPixKeyType,
-      avatarUrl: `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 100)}?w=150&auto=format&fit=crop&q=80`,
-    });
+    setIsSubmittingClient(true);
+    try {
+      const created = await onCreateNewClient({
+        name: newName.trim(),
+        email: newEmail.trim().toLowerCase(),
+        phone: newPhone.trim() || '(71) 90000-0000',
+        bandOrArtistName: newBandName.trim() || newName.trim(),
+        password: newPassword.trim(),
+        pixKey: newPixKey.trim(),
+        pixKeyType: newPixKeyType,
+        avatarUrl: `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 100)}?w=150&auto=format&fit=crop&q=80`,
+      });
 
-    setNewName('');
-    setNewEmail('');
-    setNewPhone('');
-    setNewBandName('');
-    setNewPassword('');
-    setNewPixKey('');
-    setIsRegisteringClient(false);
-    onClose();
+      if (created) {
+        onSelectRoleAndUser('client', created);
+      }
+      setNewName('');
+      setNewEmail('');
+      setNewPhone('');
+      setNewBandName('');
+      setNewPassword('');
+      setNewPixKey('');
+      setIsRegisteringClient(false);
+      onClose();
+    } catch (err: any) {
+      setClientRegError(err?.message || 'Erro ao cadastrar cliente. Tente novamente.');
+    } finally {
+      setIsSubmittingClient(false);
+    }
   };
 
   return (
@@ -1148,10 +1160,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     )}
                     <button
                       type="submit"
-                      className="flex-1 py-2.5 bg-[#00FF41] hover:bg-[#00e038] text-black font-black text-xs rounded-xl shadow-[0_0_15px_rgba(0,255,65,0.3)] transition cursor-pointer flex items-center justify-center gap-1.5"
+                      disabled={isSubmittingClient}
+                      className="flex-1 py-2.5 bg-[#00FF41] hover:bg-[#00e038] disabled:opacity-50 text-black font-black text-xs rounded-xl shadow-[0_0_15px_rgba(0,255,65,0.3)] transition cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <Sparkles className="w-4 h-4" />
-                      <span>Cadastrar & Acessar</span>
+                      <span>{isSubmittingClient ? 'Cadastrando...' : 'Cadastrar & Acessar'}</span>
                     </button>
                   </div>
                 </form>

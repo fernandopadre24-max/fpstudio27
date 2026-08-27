@@ -695,8 +695,25 @@ function AppContent() {
       if (data.booking) {
         setBookings((prev) => [data.booking, ...prev.filter((b) => b.id !== data.booking.id)]);
       }
+      if (data.quote) {
+        setQuotes((prev) => [data.quote, ...prev.filter((q) => q.id !== data.quote.id)]);
+      }
+      if (data.client) {
+        setClients((prev) => [data.client, ...prev.filter((c) => c.id !== data.client.id)]);
+        if (!activeClient?.id) {
+          setActiveClient(data.client);
+          setIsClientLoggedIn(true);
+          try {
+            safeStorage.setItem('fpstudio_client_logged_in', 'true');
+            safeStorage.setItem('fpstudio_active_client_id', data.client.id);
+            safeStorage.setItem('fpstudio_active_client_data', JSON.stringify(data.client));
+          } catch (e) {}
+        }
+      }
+      return data;
     } catch (err) {
       console.error('Error submitting booking request:', err);
+      throw err;
     }
   };
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import confetti from 'canvas-confetti';
 import {
   Calendar,
   Clock,
@@ -43,6 +44,7 @@ import {
   Star,
   ArrowLeft,
   Loader2,
+  Check,
 } from 'lucide-react';
 import { MapModal } from './MapModal';
 import {
@@ -72,7 +74,7 @@ interface ClientViewProps {
   studioInfo: any;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  onRequestBooking: (data: any) => void;
+  onRequestBooking: (data: any) => Promise<any> | void;
   onSendChatMessage: (data: any) => void;
   onUpdateClientProfile?: (updatedData: Partial<UserProfile>) => void;
 }
@@ -102,9 +104,40 @@ export const ClientView: React.FC<ClientViewProps> = ({
   );
   const [selectedTime, setSelectedTime] = useState<string>('14:00');
   const [bookingNotes, setBookingNotes] = useState<string>('');
-  const [selectedOptions, setSelectedOptions] = useState<string[]>(['pro_tools', 'microfone', 'placa_audio', 'voz', 'guitarra']);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([
+    'pro_tools',
+    'microfone',
+    'placa_audio',
+    'voz',
+    'guitarra',
+  ]);
   const [tracksCount, setTracksCount] = useState<number>(1);
+  const [paymentPlan, setPaymentPlan] = useState<'sinal_50' | 'integral_100'>('sinal_50');
   const [isSubmittingBooking, setIsSubmittingBooking] = useState<boolean>(false);
+
+  // Client Identification fields for the form
+  const [bookingClientName, setBookingClientName] = useState<string>(activeClient?.name || '');
+  const [bookingBandName, setBookingBandName] = useState<string>(activeClient?.bandOrArtistName || '');
+  const [bookingClientPhone, setBookingClientPhone] = useState<string>(activeClient?.phone || '');
+  const [bookingClientEmail, setBookingClientEmail] = useState<string>(activeClient?.email || '');
+
+  // Booking Success & PIX Confirmation Modal
+  const [bookingSuccessModalData, setBookingSuccessModalData] = useState<{
+    booking: BookingRequest;
+    quote?: PixQuote;
+  } | null>(null);
+  const [copiedStudioPix, setCopiedStudioPix] = useState<boolean>(false);
+  const [copiedModalPayload, setCopiedModalPayload] = useState<boolean>(false);
+
+  // Sync client profile fields when activeClient updates
+  React.useEffect(() => {
+    if (activeClient) {
+      if (activeClient.name && !bookingClientName) setBookingClientName(activeClient.name);
+      if (activeClient.bandOrArtistName && !bookingBandName) setBookingBandName(activeClient.bandOrArtistName);
+      if (activeClient.phone && !bookingClientPhone) setBookingClientPhone(activeClient.phone);
+      if (activeClient.email && !bookingClientEmail) setBookingClientEmail(activeClient.email);
+    }
+  }, [activeClient]);
 
   const toggleOption = (optionId: string) => {
     setSelectedOptions((prev) =>
@@ -316,9 +349,15 @@ export const ClientView: React.FC<ClientViewProps> = ({
     }
   };
 
-  const handleBookingSubmit = (e: React.FormEvent) => {
+  const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedService) return;
+
+    const clientName = (isClientLoggedIn && activeClient?.name) || bookingClientName.trim() || 'Artista / Cliente';
+    const bandName = (isClientLoggedIn && activeClient?.bandOrArtistName) || bookingBandName.trim() || clientName;
+    const clientPhone = (isClientLoggedIn && activeClient?.phone) || bookingClientPhone.trim() || '';
+    const clientEmail = (isClientLoggedIn && activeClient?.email) || bookingClientEmail.trim() || '';
+
     setIsSubmittingBooking(true);
 
     const optionsTotal = selectedOptions.reduce((acc, optId) => {
@@ -328,6 +367,7 @@ export const ClientView: React.FC<ClientViewProps> = ({
 
     const perTrackPrice = (selectedService?.basePrice || 0) + optionsTotal;
     const estimatedTotal = perTrackPrice * tracksCount;
+    const signalAmount = Math.round((estimatedTotal / 2) * 100) / 100;
 
     const optionsDetails = selectedOptions.map((optId) => {
       const opt = RECORDING_OPTIONS.find((o) => o.id === optId);
@@ -336,18 +376,22 @@ export const ClientView: React.FC<ClientViewProps> = ({
     });
 
     const tracksHeader = `Quantidade de Trilhas/Músicas: ${tracksCount} ${tracksCount === 1 ? 'faixa/música' : 'faixas/músicas'}.`;
+    const planHeader = paymentPlan === 'sinal_50'
+      ? `Condição de Pagamento: Sinal de 50% (${formatBRL(signalAmount)}) para garantia da data + Saldo de 50% (${formatBRL(estimatedTotal - signalAmount)}) no estúdio.`
+      : `Condição de Pagamento: Pagamento Integral 100% à vista via PIX (${formatBRL(estimatedTotal)}).`;
     const optionsText = selectedOptions.length > 0 
-      ? `Recursos e Instrumentos Selecionados: ${optionsDetails.join(', ')}.\nValor por Trilha: ${formatBRL(perTrackPrice)}.`
-      : `Valor por Trilha: ${formatBRL(perTrackPrice)}.`;
-    const fullNotes = [tracksHeader, optionsText, bookingNotes].filter(Boolean).join('\n');
+      ? `Recursos e Instrumentos Selecionados: ${optionsDetails.join(', ')}.\nValor Unitário por Faixa: ${formatBRL(perTrackPrice)}.`
+      : `Valor Unitário por Faixa: ${formatBRL(perTrackPrice)}.`;
 
-    setTimeout(() => {
-      onRequestBooking({
+    const fullNotes = [tracksHeader, planHeader, optionsText, bookingNotes].filter(Boolean).join('\n');
+
+    try {
+      const bookingPayload = {
         clientId: activeClient?.id || '',
-        clientName: activeClient?.name || '',
-        clientEmail: activeClient?.email || '',
-        clientPhone: activeClient?.phone || '',
-        bandOrArtistName: activeClient?.bandOrArtistName || '',
+        clientName,
+        clientEmail,
+        clientPhone,
+        bandOrArtistName: bandName,
         serviceId: selectedService.id,
         roomId: 'fpstudio',
         roomName: 'FPStudio Salvador',
@@ -356,12 +400,61 @@ export const ClientView: React.FC<ClientViewProps> = ({
         durationHours: selectedService.durationHours,
         notes: fullNotes,
         totalAmount: estimatedTotal,
-      });
+        paymentPlan,
+      };
+
+      const result: any = await onRequestBooking(bookingPayload);
+
+      // Celebratory confetti animation
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 60,
+          origin: { y: 0.6 },
+        });
+      } catch (e) {
+        console.log('Confetti triggered');
+      }
+
+      if (result && result.booking) {
+        setBookingSuccessModalData({
+          booking: result.booking,
+          quote: result.quote,
+        });
+      } else {
+        const tempBooking: BookingRequest = {
+          id: `book-${Date.now()}`,
+          clientId: activeClient?.id || 'client-novo',
+          clientName,
+          clientEmail,
+          clientPhone,
+          bandOrArtistName: bandName,
+          serviceId: selectedService.id,
+          serviceName: selectedService.name,
+          roomId: 'fpstudio',
+          roomName: 'FPStudio Salvador',
+          preferredDate: selectedDate,
+          startTime: selectedTime,
+          durationHours: selectedService.durationHours,
+          notes: fullNotes,
+          status: 'orcamento_enviado',
+          totalAmount: estimatedTotal,
+          discountAmount: 0,
+          finalAmount: estimatedTotal,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        setBookingSuccessModalData({
+          booking: tempBooking,
+        });
+      }
 
       setIsSubmittingBooking(false);
       setBookingNotes('');
-      setActiveTab('bookings'); // Switch to "Meus Agendamentos"
-    }, 500);
+    } catch (err) {
+      console.error('Error submitting booking request:', err);
+      setIsSubmittingBooking(false);
+    }
   };
 
   const handleSendTextChatMessage = (e: React.FormEvent) => {
@@ -407,9 +500,9 @@ export const ClientView: React.FC<ClientViewProps> = ({
 
     onSendChatMessage({
       bookingId: activePixModalBooking.id,
-      senderId: activeClient.id,
+      senderId: activeClient?.id || '',
       senderRole: 'client',
-      senderName: activeClient.bandOrArtistName || activeClient.name,
+      senderName: activeClient?.bandOrArtistName || activeClient?.name || 'Cliente',
       message: `Comprovante de pagamento PIX enviado! (${fileName})`,
       type: 'receipt',
       attachment: {
@@ -848,22 +941,127 @@ export const ClientView: React.FC<ClientViewProps> = ({
             </div>
 
             {/* Right Column: Interactive Schedule Calendar & Request Form */}
-            <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+            <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5">
               
-              <div className="bg-slate-900 text-white p-4 rounded-xl flex items-center justify-between">
+              {/* Service Header Badge */}
+              <div className="bg-slate-950 text-white p-4 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Serviço Selecionado</p>
-                  <h3 className="font-bold text-base leading-tight">{selectedService?.name || 'Selecione um serviço'}</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">FPStudio Salvador • Sessão Profissional</p>
+                  <div className="flex items-center gap-1.5 text-[10px] text-[#00FF41] font-bold uppercase tracking-wider">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Serviço Selecionado</span>
+                  </div>
+                  <h3 className="font-bold text-base text-white leading-tight mt-0.5">{selectedService?.name || 'Selecione um serviço'}</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">FPStudio Salvador • Sessão Profissional ({selectedService?.durationHours || 2}h)</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-black text-emerald-400">{formatBRL(selectedService?.basePrice || 0)}</p>
+                  <span className="text-[10px] text-slate-400 block font-medium">Preço Base</span>
+                  <p className="text-xl font-black text-[#00FF41]">{formatBRL(selectedService?.basePrice || 0)}</p>
                 </div>
               </div>
 
               <form onSubmit={handleBookingSubmit} className="space-y-4">
                 
-                {/* Date Picker */}
+                {/* 1. Client Identification Section */}
+                <div className="bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-1.5">
+                      <UserCheck className="w-4 h-4 text-[#00FF41]" />
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Identificação do Artista / Cliente
+                      </span>
+                    </div>
+                    {isClientLoggedIn ? (
+                      <span className="text-[10px] bg-[#00FF41]/15 text-[#00FF41] border border-[#00FF41]/30 px-2 py-0.5 rounded-full font-bold">
+                        Perfil Conectado
+                      </span>
+                    ) : (
+                      onOpenAuthModal && (
+                        <button
+                          type="button"
+                          onClick={onOpenAuthModal}
+                          className="text-[10px] text-emerald-600 dark:text-[#00FF41] hover:underline font-bold"
+                        >
+                          Já possui login? Entrar
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  {isClientLoggedIn ? (
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <div>
+                        <p className="font-black text-slate-900 dark:text-white">
+                          {activeClient?.bandOrArtistName || activeClient?.name || 'Artista Conectado'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {activeClient?.phone ? `WhatsApp: ${activeClient.phone}` : activeClient?.email}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('profile')}
+                        className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-300 dark:hover:bg-slate-700 transition"
+                      >
+                        Meu Cadastro (CPF)
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                          Nome do Responsável *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={bookingClientName}
+                          onChange={(e) => setBookingClientName(e.target.value)}
+                          placeholder="Seu Nome Completo"
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                          WhatsApp / Telefone *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={bookingClientPhone}
+                          onChange={(e) => setBookingClientPhone(e.target.value)}
+                          placeholder="(71) 99999-8888"
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                          Nome Artístico / Banda
+                        </label>
+                        <input
+                          type="text"
+                          value={bookingBandName}
+                          onChange={(e) => setBookingBandName(e.target.value)}
+                          placeholder="Ex: Banda Solstício"
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                          E-mail
+                        </label>
+                        <input
+                          type="email"
+                          value={bookingClientEmail}
+                          onChange={(e) => setBookingClientEmail(e.target.value)}
+                          placeholder="artista@email.com"
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Date Picker */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Data da Sessão de Gravação:
@@ -878,14 +1076,13 @@ export const ClientView: React.FC<ClientViewProps> = ({
                   />
                 </div>
 
-                {/* Time Slots Grid */}
+                {/* 3. Time Slots Grid */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                     Horários de Gravação Disponíveis:
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     {timeSlots.map((time) => {
-                      // Check if slot is booked
                       const isBooked = bookings.some(
                         (b) => b.preferredDate === selectedDate && b.startTime === time && b.status !== 'cancelado'
                       );
@@ -913,7 +1110,7 @@ export const ClientView: React.FC<ClientViewProps> = ({
                   </div>
                 </div>
 
-                {/* Tracks Quantity Selector */}
+                {/* 4. Tracks Quantity Selector */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -965,7 +1162,7 @@ export const ClientView: React.FC<ClientViewProps> = ({
                   </div>
                 </div>
 
-                {/* Recording Options & Instruments Checkbox Grid */}
+                {/* 5. Recording Options & Instruments Checkbox Grid */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -1006,86 +1203,184 @@ export const ClientView: React.FC<ClientViewProps> = ({
                   </div>
                 </div>
 
-                {/* Estimated Price Breakdown Box */}
-                <div className="bg-slate-900 text-slate-100 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span>Serviço Base ({selectedService?.name || 'Serviço'}):</span>
-                    <span className="font-semibold text-white">{formatBRL(selectedService?.basePrice || 0)}</span>
-                  </div>
-                  {selectedOptions.length > 0 && (
-                    <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
-                      <div className="flex items-center justify-between text-xs text-slate-400 font-bold">
-                        <span>Adicionais por Trilha ({selectedOptions.length} item{selectedOptions.length > 1 ? 's' : ''}):</span>
-                        <span className="text-emerald-400">+ {formatBRL(selectedOptions.reduce((acc, optId) => acc + (RECORDING_OPTIONS.find((o) => o.id === optId)?.price || 0), 0))}</span>
+                {/* 6. Payment Plan Selection */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Condição de Pagamento PIX:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentPlan('sinal_50')}
+                      className={`p-3 rounded-xl text-left border transition ${
+                        paymentPlan === 'sinal_50'
+                          ? 'bg-[#00FF41]/10 border-[#00FF41] text-white shadow-[0_0_15px_rgba(0,255,65,0.15)]'
+                          : 'bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black uppercase text-[#00FF41]">Sinal de 50%</span>
+                        <span className="text-[9px] bg-[#00FF41]/20 text-[#00FF41] px-1.5 py-0.5 rounded font-bold">Recomendado</span>
                       </div>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedOptions.map((optId) => {
-                          const opt = RECORDING_OPTIONS.find((o) => o.id === optId);
-                          if (!opt) return null;
-                          return (
-                            <span key={opt.id} className="text-[10px] bg-slate-800 text-emerald-300 px-2 py-0.5 rounded-md border border-slate-700/60 flex items-center gap-1">
-                              <span>{opt.label}</span>
-                              <span className="font-mono text-emerald-400 font-bold">
-                                {opt.price === 0 ? '(Incluso)' : `+${formatBRL(opt.price)}`}
-                              </span>
-                            </span>
-                          );
-                        })}
+                      <p className="text-xs font-bold text-slate-900 dark:text-white mt-1">
+                        50% agora + 50% na sessão
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        Garante o horário na agenda
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentPlan('integral_100')}
+                      className={`p-3 rounded-xl text-left border transition ${
+                        paymentPlan === 'integral_100'
+                          ? 'bg-[#00FF41]/10 border-[#00FF41] text-white shadow-[0_0_15px_rgba(0,255,65,0.15)]'
+                          : 'bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black uppercase text-indigo-400">Integral 100%</span>
+                        <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded font-bold">À Vista</span>
                       </div>
-                    </div>
-                  )}
-
-                  <div className="pt-2 border-t border-slate-800 space-y-1">
-                    <div className="flex items-center justify-between text-xs text-indigo-300">
-                      <span className="font-semibold">Valor Unitário por Trilha:</span>
-                      <span className="font-bold text-white">
-                        {formatBRL((selectedService?.basePrice || 0) + selectedOptions.reduce((acc, optId) => acc + (RECORDING_OPTIONS.find((o) => o.id === optId)?.price || 0), 0))}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-indigo-300">
-                      <span className="font-semibold">Quantidade de Trilhas / Músicas:</span>
-                      <span className="font-black text-indigo-400">× {tracksCount} {tracksCount === 1 ? 'trilha' : 'trilhas'}</span>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-300">Total Estimado do Projeto:</span>
-                    <span className="text-base font-black text-emerald-400">
-                      {formatBRL(((selectedService?.basePrice || 0) + selectedOptions.reduce((acc, optId) => acc + (RECORDING_OPTIONS.find((o) => o.id === optId)?.price || 0), 0)) * tracksCount)}
-                    </span>
+                      <p className="text-xs font-bold text-slate-900 dark:text-white mt-1">
+                        100% à vista via PIX
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        Quitação total imediata
+                      </p>
+                    </button>
                   </div>
                 </div>
 
-                {/* Custom Notes */}
+                {/* 7. Estimated Price & PIX Breakdown Box */}
+                {(() => {
+                  const optSum = selectedOptions.reduce((acc, optId) => acc + (RECORDING_OPTIONS.find((o) => o.id === optId)?.price || 0), 0);
+                  const unitPrice = (selectedService?.basePrice || 0) + optSum;
+                  const totalSum = unitPrice * tracksCount;
+                  const signal50 = Math.round((totalSum / 2) * 100) / 100;
+
+                  return (
+                    <div className="bg-slate-950 text-slate-100 p-4 rounded-xl border border-slate-800 space-y-2.5">
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>Serviço Base ({selectedService?.name || 'Serviço'}):</span>
+                        <span className="font-semibold text-white">{formatBRL(selectedService?.basePrice || 0)}</span>
+                      </div>
+
+                      {selectedOptions.length > 0 && (
+                        <div className="space-y-1.5 pt-1.5 border-t border-slate-800/80">
+                          <div className="flex items-center justify-between text-xs text-slate-400 font-bold">
+                            <span>Adicionais por Faixa ({selectedOptions.length} itens):</span>
+                            <span className="text-[#00FF41]">+ {formatBRL(optSum)}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                            {selectedOptions.map((optId) => {
+                              const opt = RECORDING_OPTIONS.find((o) => o.id === optId);
+                              if (!opt) return null;
+                              return (
+                                <span key={opt.id} className="text-[10px] bg-slate-900 text-emerald-300 px-2 py-0.5 rounded-md border border-slate-800 flex items-center gap-1">
+                                  <span>{opt.label}</span>
+                                  <span className="font-mono text-[#00FF41] font-bold">
+                                    {opt.price === 0 ? '(Incluso)' : `+${formatBRL(opt.price)}`}
+                                  </span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-slate-800 space-y-1">
+                        <div className="flex items-center justify-between text-xs text-indigo-300">
+                          <span className="font-semibold">Valor Unitário por Faixa:</span>
+                          <span className="font-bold text-white">{formatBRL(unitPrice)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-indigo-300">
+                          <span className="font-semibold">Quantidade de Trilhas:</span>
+                          <span className="font-black text-indigo-400">× {tracksCount} {tracksCount === 1 ? 'trilha' : 'trilhas'}</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-300">Valor Total do Projeto:</span>
+                        <span className="text-base font-black text-white">{formatBRL(totalSum)}</span>
+                      </div>
+
+                      {/* Highlighted Payment Requirement */}
+                      <div className="bg-[#00FF41]/10 border border-[#00FF41]/30 rounded-lg p-2.5 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] text-[#00FF41] font-black uppercase tracking-wider block">
+                            {paymentPlan === 'sinal_50' ? 'Valor do Sinal PIX (50%)' : 'Valor Total PIX (100%)'}
+                          </span>
+                          <span className="text-xs text-slate-300">
+                            {paymentPlan === 'sinal_50' ? 'Valor para confirmar a reserva' : 'Quitação completa da sessão'}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-black text-[#00FF41]">
+                            {formatBRL(paymentPlan === 'sinal_50' ? signal50 : totalSum)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Official FPStudio PIX Key Info */}
+                      <div className="pt-1 flex items-center justify-between text-[11px] text-slate-400">
+                        <div className="flex items-center gap-1.5">
+                          <QrCode className="w-3.5 h-3.5 text-[#00FF41]" />
+                          <span>Chave PIX: <strong className="text-white font-mono">36790486534</strong> (CPF)</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText('36790486534');
+                            setCopiedStudioPix(true);
+                            setTimeout(() => setCopiedStudioPix(false), 2500);
+                          }}
+                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[#00FF41] rounded text-[10px] font-bold flex items-center gap-1 transition"
+                        >
+                          {copiedStudioPix ? <Check className="w-3 h-3 text-[#00FF41]" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedStudioPix ? 'Copiado!' : 'Copiar Chave'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 8. Custom Notes */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Detalhes do Projeto / Instrumentos:
+                    Detalhes do Projeto / Observações:
                   </label>
                   <textarea
                     rows={3}
-                    placeholder="Ex: Gravaremos 2 faixas com metrônomo a 120BPM, levaremos pedaleira própria..."
+                    placeholder="Ex: Gravaremos 2 faixas com metrônomo a 120BPM, levaremos guitarra própria..."
                     value={bookingNotes}
                     onChange={(e) => setBookingNotes(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
 
+                {/* 9. Submit Button */}
                 <button
                   type="submit"
                   disabled={isSubmittingBooking}
-                  className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 text-sm"
+                  className="w-full py-4 bg-[#00FF41] hover:bg-[#00e038] disabled:opacity-80 text-black font-black rounded-xl shadow-[0_0_20px_rgba(0,255,65,0.4)] hover:scale-[1.01] active:scale-[0.99] transition flex items-center justify-center gap-2 text-sm cursor-pointer"
                 >
                   {isSubmittingBooking ? (
-                    <span>Enviando para o Estúdio...</span>
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>ENVIANDO AGENDAMENTO & GERANDO PIX...</span>
+                    </>
                   ) : (
                     <>
-                      <Calendar className="w-4 h-4" /> Solicitar Agendamento e Orçamento PIX
+                      <Calendar className="w-5 h-5" />
+                      <span>SOLICITAR AGENDAMENTO E GERAR ORÇAMENTO PIX</span>
                     </>
                   )}
                 </button>
 
                 <p className="text-[10px] text-center text-slate-400">
-                  A equipe do estúdio enviará o código PIX para confirmação diretamente pelo Chat em tempo real.
+                  Ao clicar, seu agendamento é registrado e o código PIX é gerado automaticamente com atendimento em tempo real pelo Chat.
                 </p>
 
               </form>
@@ -2021,6 +2316,172 @@ export const ClientView: React.FC<ClientViewProps> = ({
         )}
 
       </div>
+
+      {/* Booking & PIX Request Success Confirmation Modal */}
+      {bookingSuccessModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-zinc-950 border border-[#00FF41]/40 rounded-2xl w-full max-w-lg overflow-hidden shadow-[0_0_50px_rgba(0,255,65,0.2)] text-white">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-zinc-900 to-black p-5 border-b border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#00FF41]/20 border border-[#00FF41]/40 flex items-center justify-center text-[#00FF41]">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#00FF41] font-black uppercase tracking-wider block">
+                    Solicitação Concluída
+                  </span>
+                  <h3 className="text-base font-black text-white">
+                    Agendamento & Orçamento PIX
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setBookingSuccessModalData(null)}
+                className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              
+              {/* Summary Card */}
+              <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl p-4 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Código da Reserva:</span>
+                  <span className="font-mono font-bold text-[#00FF41]">{bookingSuccessModalData.booking.id}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Data e Horário:</span>
+                  <span className="font-bold text-white">
+                    {formatDateBR(bookingSuccessModalData.booking.preferredDate)} às {bookingSuccessModalData.booking.startTime}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Serviço / Estúdio:</span>
+                  <span className="font-bold text-white">
+                    {bookingSuccessModalData.booking.serviceName || 'FPStudio Salvador'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
+                  <span className="text-zinc-400">Valor Total do Projeto:</span>
+                  <span className="font-black text-white text-sm">
+                    {formatBRL(bookingSuccessModalData.booking.totalAmount)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between bg-[#00FF41]/10 border border-[#00FF41]/30 p-2.5 rounded-lg">
+                  <div>
+                    <span className="text-[10px] text-[#00FF41] font-black uppercase block">
+                      {bookingSuccessModalData.quote?.isSignalPayment ? 'Valor do Sinal PIX (50%)' : 'Valor Total PIX'}
+                    </span>
+                    <span className="text-[11px] text-zinc-300">
+                      {bookingSuccessModalData.quote?.isSignalPayment
+                        ? 'Pague 50% agora para garantir a vaga'
+                        : 'Pagamento integral'}
+                    </span>
+                  </div>
+                  <span className="text-base font-black text-[#00FF41]">
+                    {formatBRL(
+                      bookingSuccessModalData.quote?.signalAmount ||
+                      bookingSuccessModalData.quote?.totalAmount ||
+                      Math.round(bookingSuccessModalData.booking.totalAmount / 2)
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {/* PIX Payment Card */}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center space-y-3">
+                <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-[#00FF41]">
+                  <QrCode className="w-4 h-4" />
+                  <span>Chave PIX Oficial FPStudio</span>
+                </div>
+
+                <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 inline-block mx-auto">
+                  <div className="w-40 h-40 bg-white p-2 rounded-lg flex items-center justify-center mx-auto shadow-inner">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                        bookingSuccessModalData.quote?.pixPayload ||
+                        `00020126330014BR.GOV.BCB.PIX011136790486534520400005303986540${Math.round(
+                          (bookingSuccessModalData.quote?.signalAmount || bookingSuccessModalData.booking.totalAmount / 2) * 100
+                        )}5802BR5914Fernando Padre6008Salvador62070503***6304`
+                      )}`}
+                      alt="QR Code PIX"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1 text-xs">
+                  <p className="text-zinc-400">Beneficiário: <strong className="text-white">Fernando Padre (FPStudio)</strong></p>
+                  <p className="text-zinc-400">Banco: <strong className="text-white">Nu Pagamentos (Nubank)</strong></p>
+                  <p className="text-zinc-400">Chave CPF: <strong className="text-[#00FF41] font-mono">36790486534</strong></p>
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText('36790486534');
+                      setCopiedStudioPix(true);
+                      setTimeout(() => setCopiedStudioPix(false), 2500);
+                    }}
+                    className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border border-zinc-700"
+                  >
+                    {copiedStudioPix ? <Check className="w-3.5 h-3.5 text-[#00FF41]" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedStudioPix ? 'Chave CPF Copiada!' : 'Copiar Chave CPF'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const payload = bookingSuccessModalData.quote?.pixPayload || '00020126330014BR.GOV.BCB.PIX0111367904865345204000053039865802BR5914Fernando Padre6008Salvador6304';
+                      navigator.clipboard.writeText(payload);
+                      setCopiedModalPayload(true);
+                      setTimeout(() => setCopiedModalPayload(false), 2500);
+                    }}
+                    className="w-full py-2.5 bg-[#00FF41] hover:bg-[#00e038] text-black rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(0,255,65,0.3)]"
+                  >
+                    {copiedModalPayload ? <Check className="w-3.5 h-3.5 text-black" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedModalPayload ? 'Copia e Cola Copiado!' : 'Copiar PIX Copia e Cola'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveBookingIdForChat(bookingSuccessModalData.booking.id);
+                    setBookingSuccessModalData(null);
+                    setActiveTab('chat');
+                  }}
+                  className="py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border border-zinc-700"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-[#00FF41]" />
+                  <span>Abrir Chat com Estúdio</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBookingSuccessModalData(null);
+                    setActiveTab('bookings');
+                  }}
+                  className="py-3 bg-zinc-800 hover:bg-zinc-700 text-[#00FF41] rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border border-zinc-700"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Ver Meus Agendamentos</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PIX Payment Modal */}
       {activePixModalQuote && activePixModalBooking && (
