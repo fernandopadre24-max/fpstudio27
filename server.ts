@@ -72,7 +72,11 @@ function loadDb() {
         bookings = Array.isArray(data.bookings) ? data.bookings : [];
         quotes = Array.isArray(data.quotes) ? data.quotes : [];
         chatMessages = Array.isArray(data.chatMessages) ? data.chatMessages : [];
-        notifications = Array.isArray(data.notifications) ? data.notifications : [];
+        if (Array.isArray(data.notifications) && data.notifications.length > 0) {
+          notifications = data.notifications;
+        } else {
+          notifications = [...INITIAL_NOTIFICATIONS];
+        }
         transactions = Array.isArray(data.transactions) ? data.transactions : [];
         reviews = Array.isArray(data.reviews) ? data.reviews : [];
 
@@ -1489,7 +1493,42 @@ async function startApp() {
     }
     saveDb();
     broadcastEvent('notifications_read', { notifId });
-    res.json({ success: true });
+    res.json({ success: true, notifications });
+  });
+
+  // API ROUTE: Delete Single Notification
+  app.delete('/api/notifications/:id', (req, res) => {
+    const { id } = req.params;
+    notifications = notifications.filter((n) => n.id !== id);
+    saveDb();
+    broadcastEvent('notification_deleted', { id });
+    res.json({ success: true, id });
+  });
+
+  // API ROUTE: Clear All Notifications
+  app.post('/api/notifications/clear-all', (req, res) => {
+    const { role } = req.body;
+    if (role) {
+      notifications = notifications.filter((n) => n.targetRole !== role && n.targetRole !== 'all');
+    } else {
+      notifications = [];
+    }
+    saveDb();
+    broadcastEvent('notifications_cleared', { role });
+    res.json({ success: true, notifications });
+  });
+
+  // API ROUTE: Trigger Test Notification (for live debugging & verification)
+  app.post('/api/notifications/test', (req, res) => {
+    const { targetRole = 'studio', title, message, type = 'info' } = req.body;
+    const testNotif = addNotification({
+      targetRole: targetRole || 'studio',
+      title: title || (targetRole === 'studio' ? '🔔 Teste de Notificação ADM' : '🔔 Teste de Notificação Cliente'),
+      message: message || 'O sino de avisos do FPStudio está 100% operacional em tempo real!',
+      type: type || 'info',
+    });
+    saveDb();
+    res.json({ success: true, notification: testNotif });
   });
 
   // API ROUTE: Get All Client Reviews

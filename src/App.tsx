@@ -31,6 +31,7 @@ import {
   INITIAL_ADMIN_CREDENTIALS,
 } from './data/initialData';
 import { safeStorage } from './utils/safeStorage';
+import { playNotificationChime } from './utils/audioUtils';
 
 function AppContent() {
   const { currentAccent, currentTheme, currentFont, t, setIsCustomModalOpen, language, setLanguage } =
@@ -547,8 +548,46 @@ function AppContent() {
           try {
             const notif: PushNotification = JSON.parse(e.data);
             setNotifications((prev) => [notif, ...prev.filter((n) => n.id !== notif.id)]);
+            playNotificationChime();
           } catch (err) {
             console.error('Error parsing SSE notification:', err);
+          }
+        });
+
+        eventSource.addEventListener('notifications_read', (e: MessageEvent) => {
+          try {
+            const { notifId } = JSON.parse(e.data);
+            if (notifId) {
+              setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, read: true } : n)));
+            } else {
+              setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+            }
+          } catch (err) {
+            console.error('Error parsing SSE notifications_read:', err);
+          }
+        });
+
+        eventSource.addEventListener('notification_deleted', (e: MessageEvent) => {
+          try {
+            const { id } = JSON.parse(e.data);
+            if (id) {
+              setNotifications((prev) => prev.filter((n) => n.id !== id));
+            }
+          } catch (err) {
+            console.error('Error parsing SSE notification_deleted:', err);
+          }
+        });
+
+        eventSource.addEventListener('notifications_cleared', (e: MessageEvent) => {
+          try {
+            const { role } = JSON.parse(e.data);
+            if (role) {
+              setNotifications((prev) => prev.filter((n) => n.targetRole !== role && n.targetRole !== 'all'));
+            } else {
+              setNotifications([]);
+            }
+          } catch (err) {
+            console.error('Error parsing SSE notifications_cleared:', err);
           }
         });
 
@@ -1254,6 +1293,52 @@ function AppContent() {
     }
   };
 
+  const handleDeleteNotification = async (id: string) => {
+    try {
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      await fetch(`/api/notifications/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Error deleting notification:', err);
+    }
+  };
+
+  const handleClearAllNotifications = async (role?: Role) => {
+    try {
+      if (role) {
+        setNotifications((prev) => prev.filter((n) => n.targetRole !== role && n.targetRole !== 'all'));
+      } else {
+        setNotifications([]);
+      }
+      await fetch('/api/notifications/clear-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+    } catch (err) {
+      console.error('Error clearing notifications:', err);
+    }
+  };
+
+  const handleTriggerTestNotification = async () => {
+    try {
+      const res = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetRole: currentRole,
+          title: currentRole === 'studio' ? '🔔 Alerta de Teste do Estúdio' : '🔔 Alerta de Teste do Cliente',
+          message: 'O sino de avisos do FPStudio está funcionando perfeitamente em tempo real!',
+        }),
+      });
+      const data = await res.json();
+      if (data.notification) {
+        setNotifications((prev) => [data.notification, ...prev.filter((n) => n.id !== data.notification.id)]);
+      }
+    } catch (err) {
+      console.error('Error triggering test notification:', err);
+    }
+  };
+
   const handleResetState = async () => {
     try {
       await fetch('/api/reset-state', { method: 'POST' });
@@ -1482,6 +1567,9 @@ function AppContent() {
         onSelectClient={setActiveClient}
         notifications={notifications}
         onMarkNotificationRead={handleMarkNotificationRead}
+        onDeleteNotification={handleDeleteNotification}
+        onClearAllNotifications={handleClearAllNotifications}
+        onTriggerTestNotification={handleTriggerTestNotification}
         isConnected={isConnected}
         onResetState={handleResetState}
         activeTab={currentRole === 'client' ? clientActiveTab : studioActiveTab}

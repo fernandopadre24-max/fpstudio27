@@ -127,7 +127,7 @@ export interface ChatMessage {
 
 export interface PushNotification {
   id: string;
-  targetRole: Role;
+  targetRole: Role | 'all';
   targetUserId?: string;
   title: string;
   message: string;

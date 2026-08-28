@@ -217,6 +217,34 @@ export const INITIAL_QUOTES: PixQuote[] = [];
 
 export const INITIAL_CHAT_MESSAGES: ChatMessage[] = [];
 
-export const INITIAL_NOTIFICATIONS: PushNotification[] = [];
+export const INITIAL_NOTIFICATIONS: PushNotification[] = [
+  {
+    id: "notif-init-1",
+    targetRole: "studio",
+    title: "🎉 Bem-vindo ao Painel FPStudio!",
+    message: "A central de avisos está conectada em tempo real. Novos pedidos, comprovantes PIX e avaliações aparecerão aqui.",
+    type: "system",
+    read: false,
+    timestamp: new Date().toISOString(),
+  },
+  {
+    id: "notif-init-2",
+    targetRole: "studio",
+    title: "⚡ Alertas em Tempo Real Ativos",
+    message: "Notificações instantâneas ativadas para controle de agenda, pagamentos e chat direto com artistas.",
+    type: "info",
+    read: false,
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: "notif-init-3",
+    targetRole: "client",
+    title: "🎧 Bem-vindo ao FPStudio!",
+    message: "Escolha seu serviço de gravação, agende um horário e receba seu orçamento e chave PIX oficial instantaneamente.",
+    type: "info",
+    read: false,
+    timestamp: new Date().toISOString(),
+  },
+];
 
 export const INITIAL_TRANSACTIONS: TransactionRecord[] = [];
