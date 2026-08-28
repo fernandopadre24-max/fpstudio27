@@ -382,9 +382,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   onClick={onOpenAuthModal}
                   className="px-2 sm:px-3 py-1.5 rounded-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 text-zinc-300 hover:text-sky-300 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm"
-                  title="Acesso de Funcionários / Administrador (PIN)"
+                  title="Acesso de Funcionários / Administrador"
                 >
-                  <span className="hidden sm:inline">ADM (PIN)</span>
+                  <span className="hidden sm:inline">ADM</span>
                   <Lock className="w-3.5 h-3.5 text-sky-400" />
                 </button>
               </div>

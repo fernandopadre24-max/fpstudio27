@@ -45,7 +45,7 @@ export interface StudioStaffUser {
   code: string;
   codeLabel: string;
   roleDescription: string;
-  pins: string[]; // Allowed PINs for quick entry
+  pins: string[]; // Allowed PINs for entry
   avatarUrl: string;
   email: string;
 }
@@ -54,8 +54,8 @@ export const STUDIO_STAFF_MEMBERS: StudioStaffUser[] = [
   {
     id: 'adm-studio-main',
     name: 'Fernando Padre',
-    code: '0000',
-    codeLabel: 'COD: 0000',
+    code: 'adm',
+    codeLabel: 'Administrador Autorizado',
     roleDescription: 'Administrador Geral & Produtor Musical',
     pins: ['0000', '1234', '123456'],
     avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
@@ -87,7 +87,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [studioLoginMode, setStudioLoginMode] = useState<'pin' | 'email'>('pin');
   const [selectedStaff, setSelectedStaff] = useState<StudioStaffUser>(STUDIO_STAFF_MEMBERS[0]);
   const [pinValue, setPinValue] = useState<string>('');
-  const [showPinNumbers, setShowPinNumbers] = useState<boolean>(false);
   const [pinError, setPinError] = useState<string>('');
   const [isSuccessPin, setIsSuccessPin] = useState<boolean>(false);
   const [isRegisteringClient, setIsRegisteringClient] = useState(false);
@@ -396,7 +395,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   AUTH
                 </span>
               </h3>
-              <p className="text-[11px] text-zinc-400">Identifique-se com seu código e PIN de 4 dígitos</p>
+              <p className="text-[11px] text-zinc-400">Identifique-se com seu PIN de acesso seguro</p>
             </div>
           </div>
           <button
@@ -457,14 +456,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {activeTab === 'studio' && studioLoginMode === 'pin' && (
             <div className="space-y-4 animate-in fade-in duration-200">
               
-              {/* SECTION: SELECIONE SEU USUÁRIO (CÓDIGO) */}
+              {/* SECTION: SELECIONE SEU USUÁRIO */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-black text-slate-300 uppercase tracking-wider">
-                    SELECIONE SEU USUÁRIO (CÓDIGO)
+                    SELECIONE SEU USUÁRIO
                   </span>
-                  <span className="text-[10px] text-[#00FF41] font-mono font-bold">
-                    {selectedStaff ? selectedStaff.codeLabel : 'Selecione'}
+                  <span className="text-[10px] text-sky-400 font-bold flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" />
+                    <span>Acesso Autorizado</span>
                   </span>
                 </div>
 
@@ -496,8 +496,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <h4 className="font-black text-sm text-white">{staff.name}</h4>
-                              <span className="px-2 py-0.5 rounded bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 text-[10px] font-mono font-bold tracking-wider">
-                                {staff.codeLabel}
+                              <span className="px-2 py-0.5 rounded bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 text-[10px] font-bold tracking-wider">
+                                ADM Geral
                               </span>
                             </div>
                             <p className="text-[11px] text-slate-400 mt-0.5">{staff.roleDescription}</p>
@@ -525,21 +525,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-black text-slate-300 tracking-wider uppercase text-[11px]">
-                    SENHA / PIN (4 DÍGITOS)
+                    DIGITE SEU PIN DE ACESSO
                   </span>
                   <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
                     <span className="flex items-center gap-1 text-slate-400">
                       <Keyboard className="w-3.5 h-3.5 text-slate-400" />
-                      <span>ou teclado</span>
+                      <span>teclado ou botões</span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowPinNumbers(!showPinNumbers)}
-                      className="text-slate-400 hover:text-white flex items-center gap-0.5 ml-1"
-                      title={showPinNumbers ? 'Ocultar dígitos' : 'Mostrar dígitos'}
-                    >
-                      {showPinNumbers ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
                   </div>
                 </div>
 
@@ -572,11 +564,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         }`}
                       >
                         {isFilled ? (
-                          showPinNumbers ? (
-                            <span>{digit}</span>
-                          ) : (
-                            <span className="w-3.5 h-3.5 rounded-full bg-[#00FF41] shadow-[0_0_8px_#00FF41] animate-in zoom-in-50 duration-100" />
-                          )
+                          <span className="w-3.5 h-3.5 rounded-full bg-[#00FF41] shadow-[0_0_8px_#00FF41] animate-in zoom-in-50 duration-100" />
                         ) : isCurrent ? (
                           <span className="w-1.5 h-4 bg-indigo-400/60 rounded animate-pulse" />
                         ) : (
@@ -782,21 +770,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-black text-slate-300 tracking-wider uppercase text-[11px]">
-                        DIGITE SEU PIN DE 4 DÍGITOS
+                        DIGITE SEU PIN DE ACESSO
                       </span>
                       <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
                         <span className="flex items-center gap-1 text-slate-400">
                           <Keyboard className="w-3.5 h-3.5 text-slate-400" />
-                          <span>ou teclado</span>
+                          <span>teclado ou botões</span>
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => setShowPinNumbers(!showPinNumbers)}
-                          className="text-slate-400 hover:text-white"
-                          title={showPinNumbers ? 'Ocultar' : 'Mostrar'}
-                        >
-                          {showPinNumbers ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
                       </div>
                     </div>
 
@@ -828,11 +808,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             }`}
                           >
                             {isFilled ? (
-                              showPinNumbers ? (
-                                <span>{digit}</span>
-                              ) : (
-                                <span className="w-3.5 h-3.5 rounded-full bg-[#00FF41] shadow-[0_0_8px_#00FF41]" />
-                              )
+                              <span className="w-3.5 h-3.5 rounded-full bg-[#00FF41] shadow-[0_0_8px_#00FF41] animate-in zoom-in-50 duration-100" />
                             ) : isCurrent ? (
                               <span className="w-1.5 h-4 bg-indigo-400/60 rounded animate-pulse" />
                             ) : (
@@ -1084,7 +1060,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         maxLength={4}
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        placeholder="Ex: 1234"
+                        placeholder="••••"
                         className="w-full pr-10 pl-3 py-2 bg-zinc-950 border border-zinc-700 rounded-lg text-sm font-mono tracking-[0.4em] text-white focus:outline-none focus:border-[#00FF41]"
                       />
                       <button

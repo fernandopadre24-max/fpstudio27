@@ -574,10 +574,27 @@ function AppContent() {
 
         eventSource.addEventListener('chat_message', (e: MessageEvent) => {
           try {
-            const { message, booking } = JSON.parse(e.data);
-            setChatMessages((prev) => [...prev.filter((m) => m.id !== message.id), message]);
-            if (booking) {
-              setBookings((prev) => prev.map((b) => (b.id === booking.id ? booking : b)));
+            const rawData = JSON.parse(e.data);
+            let msgObj: ChatMessage | null = null;
+            let bookingObj: BookingRequest | null = null;
+
+            if (rawData && typeof rawData === 'object') {
+              if (rawData.message && typeof rawData.message === 'object' && rawData.message.id) {
+                msgObj = rawData.message;
+                bookingObj = rawData.booking || null;
+              } else if (rawData.chatMsg && typeof rawData.chatMsg === 'object' && rawData.chatMsg.id) {
+                msgObj = rawData.chatMsg;
+                bookingObj = rawData.booking || null;
+              } else if (rawData.id && rawData.bookingId) {
+                msgObj = rawData as ChatMessage;
+              }
+            }
+
+            if (msgObj && msgObj.id) {
+              setChatMessages((prev) => [...prev.filter((m) => m.id !== msgObj!.id), msgObj!]);
+            }
+            if (bookingObj && bookingObj.id) {
+              setBookings((prev) => prev.map((b) => (b.id === bookingObj!.id ? bookingObj! : b)));
             }
           } catch (err) {
             console.error('Error parsing SSE chat_message:', err);
@@ -800,9 +817,38 @@ function AppContent() {
         : `Orçamento oficial com chave PIX FPStudio gerado com sucesso.`,
     };
 
+    // Initial optimistic chat messages for new booking
+    const fallbackInitialMsg: ChatMessage = {
+      id: `msg-${Date.now()}-init`,
+      bookingId: fallbackBooking.id,
+      senderId: fallbackBooking.clientId,
+      senderRole: 'client',
+      senderName: fallbackBooking.clientName,
+      message: `Solicitação de agendamento criada para ${fallbackBooking.serviceName} no dia ${fallbackBooking.preferredDate} às ${fallbackBooking.startTime} na ${fallbackBooking.roomName}.${fallbackBooking.notes ? ` Obs: "${fallbackBooking.notes}"` : ''}`,
+      type: 'text',
+      timestamp: new Date().toISOString(),
+    };
+
+    const fallbackQuoteMsg: ChatMessage = {
+      id: `msg-${Date.now() + 1}-quote`,
+      bookingId: fallbackBooking.id,
+      senderId: 'studio-admin',
+      senderRole: 'studio',
+      senderName: studioInfo?.name || 'Fernando Padre (FPStudio)',
+      message: `Olá ${fallbackBooking.bandOrArtistName || fallbackBooking.clientName}! Recebemos sua solicitação. O orçamento para ${fallbackBooking.serviceName} é de R$ ${total.toFixed(2)}.${isSignal ? ` Você pode antecipar 50% de sinal (R$ ${pixAmount.toFixed(2)}) via PIX para garantir sua vaga!` : ''}\nChave PIX: ${cleanPixKey} (${studioInfo?.pixKeyType || 'CPF'}).`,
+      type: 'quote',
+      quotePayload: fallbackQuote,
+      timestamp: new Date(Date.now() + 100).toISOString(),
+    };
+
     // Optimistically update frontend state
     setBookings((prev) => [fallbackBooking, ...prev.filter((b) => b.id !== fallbackBooking.id)]);
     setQuotes((prev) => [fallbackQuote, ...prev.filter((q) => q.id !== fallbackQuote.id)]);
+    setChatMessages((prev) => [
+      ...prev.filter((m) => m.bookingId !== fallbackBooking.id),
+      fallbackInitialMsg,
+      fallbackQuoteMsg,
+    ]);
 
     try {
       const res = await fetch('/api/bookings/request', {
@@ -819,6 +865,15 @@ function AppContent() {
           }
           if (data.quote) {
             setQuotes((prev) => [data.quote, ...prev.filter((q) => q.id !== data.quote.id && q.id !== fallbackQuote.id)]);
+          }
+          if (Array.isArray(data.chatMessages) && data.chatMessages.length > 0) {
+            setChatMessages((prev) => {
+              const msgMap = new Map(prev.map((m) => [m.id, m]));
+              data.chatMessages.forEach((m: ChatMessage) => {
+                if (m && m.id) msgMap.set(m.id, m);
+              });
+              return Array.from(msgMap.values());
+            });
           }
           if (data.client) {
             setClients((prev) => [data.client, ...prev.filter((c) => c.id !== data.client.id)]);
@@ -862,6 +917,29 @@ function AppContent() {
   };
 
   const handleSendChatMessage = async (msgData: any) => {
+    // 1. Optimistically append message immediately to chat
+    const tempMsg: ChatMessage = {
+      id: `msg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      bookingId: msgData.bookingId,
+      senderId: msgData.senderId || (msgData.senderRole === 'studio' ? 'studio-master' : activeClient?.id || 'client'),
+      senderRole: msgData.senderRole || 'client',
+      senderName: msgData.senderName || (msgData.senderRole === 'studio' ? 'FPStudio' : activeClient?.name || 'Cliente'),
+      message: msgData.message || '',
+      type: msgData.type || 'text',
+      attachment: msgData.attachment,
+      quotePayload: msgData.quotePayload,
+      timestamp: new Date().toISOString(),
+    };
+
+    setChatMessages((prev) => [...prev.filter((m) => m.id !== tempMsg.id), tempMsg]);
+
+    // If sending a receipt, update booking status optimistically
+    if (msgData.type === 'receipt' || msgData.attachment) {
+      setBookings((prev) =>
+        prev.map((b) => (b.id === msgData.bookingId ? { ...b, status: 'comprovante_enviado', updatedAt: new Date().toISOString() } : b))
+      );
+    }
+
     try {
       const res = await fetch('/api/chat/send', {
         method: 'POST',
@@ -870,7 +948,10 @@ function AppContent() {
       });
       const data = await res.json();
       if (data.message) {
-        setChatMessages((prev) => [...prev.filter((m) => m.id !== data.message.id), data.message]);
+        setChatMessages((prev) => [
+          ...prev.filter((m) => m.id !== data.message.id && m.id !== tempMsg.id),
+          data.message,
+        ]);
       }
       if (data.booking) {
         setBookings((prev) => prev.map((b) => (b.id === data.booking.id ? data.booking : b)));

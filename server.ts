@@ -903,14 +903,15 @@ async function startApp() {
 
     broadcastEvent('new_booking', newBooking);
     broadcastEvent('new_quote', newQuote);
-    broadcastEvent('chat_message', initialMsg);
-    broadcastEvent('chat_message', quoteMsg);
+    broadcastEvent('chat_message', { message: initialMsg, booking: newBooking });
+    broadcastEvent('chat_message', { message: quoteMsg, booking: newBooking });
 
     res.json({
       success: true,
       booking: newBooking,
       quote: newQuote,
       client: clientObj,
+      chatMessages: [initialMsg, quoteMsg],
     });
   });
 

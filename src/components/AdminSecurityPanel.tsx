@@ -122,7 +122,7 @@ export const AdminSecurityPanel: React.FC<AdminSecurityPanelProps> = ({
       });
 
       if (res.success) {
-        setPinSuccess(`✅ PIN alterado com sucesso para "${cleanNewPin}"! Use este novo PIN no próximo acesso.`);
+        setPinSuccess('✅ PIN alterado com sucesso! Use seu novo PIN no próximo acesso.');
         setCurrentPin('');
         setNewPin('');
         setConfirmPin('');
@@ -244,9 +244,9 @@ export const AdminSecurityPanel: React.FC<AdminSecurityPanelProps> = ({
           <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800 px-3.5 py-2 rounded-xl text-xs text-slate-300">
             <BadgeCheck className="w-4 h-4 text-sky-400 shrink-0" />
             <div>
-              <span className="text-slate-400 block text-[10px] font-bold">PIN ATUAL ATIVO</span>
+              <span className="text-slate-400 block text-[10px] font-bold">STATUS DO PIN</span>
               <span className="font-mono font-black text-sky-300 tracking-wider">
-                •••• {adminCredentials.pin ? `(Termina em ${adminCredentials.pin.slice(-2)})` : ''}
+                •••••••• (Protegido)
               </span>
             </div>
           </div>
@@ -326,14 +326,13 @@ export const AdminSecurityPanel: React.FC<AdminSecurityPanelProps> = ({
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
                 <span>PIN Atual (se já possuir)</span>
-                <span className="text-[10px] text-slate-500 font-normal">Padrão inicial: 0000 ou 1234</span>
               </label>
               <input
                 type={showPin ? 'text' : 'password'}
                 maxLength={6}
                 value={currentPin}
                 onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
-                placeholder="Ex: 0000"
+                placeholder="••••"
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono placeholder:text-slate-600 focus:outline-none focus:border-sky-400 tracking-widest"
               />
             </div>
@@ -356,12 +355,12 @@ export const AdminSecurityPanel: React.FC<AdminSecurityPanelProps> = ({
                 maxLength={6}
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                placeholder="Digite de 4 a 6 números"
+                placeholder="••••"
                 required
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white font-mono placeholder:text-slate-600 focus:outline-none focus:border-sky-400 tracking-[0.25em]"
               />
               <p className="text-[11px] text-slate-400 mt-1">
-                Apenas números de 0 a 9. Exemplos: 2027, 7198, 8888, 123456.
+                Apenas números de 0 a 9 (mínimo 4 dígitos).
               </p>
             </div>
 
@@ -375,30 +374,10 @@ export const AdminSecurityPanel: React.FC<AdminSecurityPanelProps> = ({
                 maxLength={6}
                 value={confirmPin}
                 onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                placeholder="Repita o novo PIN"
+                placeholder="••••"
                 required
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-white font-mono placeholder:text-slate-600 focus:outline-none focus:border-sky-400 tracking-[0.25em]"
               />
-            </div>
-
-            {/* Teclas de PIN de Exemplo Rápido */}
-            <div className="p-3.5 bg-slate-950/60 border border-slate-800 rounded-xl">
-              <span className="text-[11px] font-bold text-slate-400 block mb-2">Sugestões de PIN Seguros:</span>
-              <div className="flex flex-wrap gap-2">
-                {['2027', '7198', '8888', '4321', '0707'].map((sugg) => (
-                  <button
-                    key={sugg}
-                    type="button"
-                    onClick={() => {
-                      setNewPin(sugg);
-                      setConfirmPin(sugg);
-                    }}
-                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 font-mono text-xs rounded-lg border border-slate-700 transition cursor-pointer"
-                  >
-                    {sugg}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* Botão de Salvar */}

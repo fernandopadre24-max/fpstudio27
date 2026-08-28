@@ -45,6 +45,7 @@ import {
   ArrowLeft,
   Loader2,
   Check,
+  Download,
 } from 'lucide-react';
 import { MapModal } from './MapModal';
 import {
@@ -183,7 +184,14 @@ export const ClientView: React.FC<ClientViewProps> = ({
     fileType: string;
     dataUrl: string;
   } | null>(null);
+  const [lightboxAttachment, setLightboxAttachment] = useState<{
+    name: string;
+    dataUrl: string;
+    fileType?: string;
+  } | null>(null);
+  const [copiedChatPixKey, setCopiedChatPixKey] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const chatEndRef = React.useRef<HTMLDivElement>(null);
 
   const handleChatFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -329,11 +337,37 @@ export const ClientView: React.FC<ClientViewProps> = ({
   const [activePixModalBooking, setActivePixModalBooking] = useState<BookingRequest | null>(null);
 
   // Filter client's bookings
-  const clientBookings = bookings.filter((b) => b.clientId === activeClient?.id);
+  const clientBookings = (bookings || []).filter((b) => {
+    if (!activeClient) return true;
+    if (b.clientId && b.clientId === activeClient.id) return true;
+    if (activeClient.email && b.clientEmail && b.clientEmail.toLowerCase() === activeClient.email.toLowerCase()) return true;
+    if (activeClient.phone && b.clientPhone && b.clientPhone === activeClient.phone) return true;
+    if (activeClient.name && b.clientName && b.clientName.toLowerCase() === activeClient.name.toLowerCase()) return true;
+    if (activeClient.bandOrArtistName && b.bandOrArtistName && b.bandOrArtistName.toLowerCase() === activeClient.bandOrArtistName.toLowerCase()) return true;
+    return false;
+  });
 
   // Get active chat booking & messages
-  const selectedChatBooking = bookings.find((b) => b.id === activeBookingIdForChat) || clientBookings[0];
-  const currentChatMsgs = chatMessages.filter((m) => m.bookingId === selectedChatBooking?.id);
+  const selectedChatBooking =
+    (bookings || []).find((b) => b.id === activeBookingIdForChat) ||
+    clientBookings[0] ||
+    (bookings || [])[0];
+
+  const currentChatMsgs = (chatMessages || []).filter((m) => m.bookingId === selectedChatBooking?.id);
+
+  // Auto-scroll chat to latest message
+  React.useEffect(() => {
+    if (activeTab === 'chat' && chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [currentChatMsgs.length, selectedChatBooking?.id, activeTab]);
+
+  // Keep active booking synchronized when list changes
+  React.useEffect(() => {
+    if (!activeBookingIdForChat && clientBookings.length > 0) {
+      setActiveBookingIdForChat(clientBookings[0].id);
+    }
+  }, [clientBookings, activeBookingIdForChat]);
 
   // Available Time Slots for Room Calendar
   const timeSlots = ['08:00', '10:00', '14:00', '16:00', '18:00', '20:00'];
@@ -512,11 +546,27 @@ export const ClientView: React.FC<ClientViewProps> = ({
   };
 
   const handleOpenPixModal = (booking: BookingRequest) => {
-    const quote = quotes.find((q) => q.bookingId === booking.id);
-    if (quote) {
-      setActivePixModalQuote(quote);
-      setActivePixModalBooking(booking);
+    let quote = quotes.find((q) => q.bookingId === booking.id);
+    if (!quote) {
+      // Fallback quote generation if not in store
+      quote = {
+        id: `quote-fb-${booking.id}`,
+        bookingId: booking.id,
+        clientId: booking.clientId,
+        clientName: booking.clientName,
+        serviceName: booking.serviceName,
+        totalAmount: booking.finalAmount || booking.totalAmount,
+        pixKey: '36790486534',
+        pixKeyType: 'CPF',
+        pixPayload: `00020101021226830014br.gov.bcb.pix0136fpstudio.pagamentos@pix.com.br520400005303986540${(booking.finalAmount || booking.totalAmount).toFixed(2)}5802BR5920FPSTUDIO PRODUCOES6009SAO PAULO62070503***6304FB72`,
+        qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=00020101021226830014br.gov.bcb.pix0136fpstudio.pagamentos@pix.com.br520400005303986540${(booking.finalAmount || booking.totalAmount).toFixed(2)}5802BR5920FPSTUDIO PRODUCOES6009SAO PAULO62070503***6304FB72`,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        status: booking.status === 'pago_confirmado' ? 'confirmed' : 'pending',
+        notes: `Orçamento oficial para ${booking.serviceName} (${booking.durationHours}h)`,
+      };
     }
+    setActivePixModalQuote(quote);
+    setActivePixModalBooking(booking);
   };
 
   const handleGoToServicos = () => {
@@ -532,12 +582,15 @@ export const ClientView: React.FC<ClientViewProps> = ({
   const handleSendReceiptFromModal = (fileDataUrl: string, fileName: string) => {
     if (!activePixModalBooking) return;
 
+    const bId = activePixModalBooking.id;
+    setActiveBookingIdForChat(bId);
+
     onSendChatMessage({
-      bookingId: activePixModalBooking.id,
+      bookingId: bId,
       senderId: activeClient?.id || '',
       senderRole: 'client',
       senderName: activeClient?.bandOrArtistName || activeClient?.name || 'Cliente',
-      message: `Comprovante de pagamento PIX enviado! (${fileName})`,
+      message: `Comprovante de pagamento PIX anexado com sucesso! (${fileName})`,
       type: 'receipt',
       attachment: {
         name: fileName,
@@ -1657,22 +1710,37 @@ export const ClientView: React.FC<ClientViewProps> = ({
                         <span>Enviar Comprovante</span>
                       </button>
 
-                      {quotes.some((q) => q.bookingId === selectedChatBooking.id) && (
-                        <button
-                          onClick={() => handleOpenPixModal(selectedChatBooking)}
-                          className="px-3 py-1.5 bg-[#00FF41] hover:bg-[#00e038] text-black font-black rounded-xl text-xs flex items-center gap-1 shadow cursor-pointer"
-                        >
-                          <QrCode className="w-3.5 h-3.5" /> Pagar com PIX
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleOpenPixModal(selectedChatBooking)}
+                        className="px-3 py-1.5 bg-[#00FF41] hover:bg-[#00e038] text-black font-black rounded-xl text-xs flex items-center gap-1 shadow-[0_0_15px_rgba(0,255,65,0.3)] cursor-pointer hover:scale-105 active:scale-95 transition"
+                      >
+                        <QrCode className="w-3.5 h-3.5" /> Pagar com PIX
+                      </button>
                     </div>
                   </div>
 
                   {/* Message Stream */}
                   <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-900/90">
                     {currentChatMsgs.length === 0 ? (
-                      <div className="text-center py-12 text-slate-500 text-xs">
-                        Nenhuma mensagem trocada para este agendamento.
+                      <div className="text-center py-16 space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-zinc-800 border border-zinc-700 text-[#00FF41] flex items-center justify-center mx-auto">
+                          <MessageSquare className="w-6 h-6" />
+                        </div>
+                        <p className="text-white text-xs font-bold">Canal direto com o produtor FPStudio</p>
+                        <p className="text-zinc-400 text-[11px] max-w-sm mx-auto">
+                          Solicite orçamentos, envie comprovantes de pagamento PIX e tire dúvidas em tempo real.
+                        </p>
+                        <div className="pt-2 flex justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setChatInputText('Olá Fernando, gostaria de confirmar os detalhes do meu agendamento!');
+                            }}
+                            className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[11px] rounded-lg border border-zinc-700 transition"
+                          >
+                            💬 Mandar mensagem inicial
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       currentChatMsgs.map((msg) => {
@@ -1688,7 +1756,7 @@ export const ClientView: React.FC<ClientViewProps> = ({
                             </span>
 
                             <div
-                              className={`max-w-[80%] rounded-2xl p-3 text-xs shadow-md space-y-2 ${
+                              className={`max-w-[85%] rounded-2xl p-3.5 text-xs shadow-md space-y-2.5 ${
                                 isClientSender
                                   ? 'bg-emerald-600 text-white rounded-br-none'
                                   : 'bg-slate-800 text-slate-100 rounded-bl-none border border-slate-700'
@@ -1698,45 +1766,94 @@ export const ClientView: React.FC<ClientViewProps> = ({
 
                               {/* Quote Payload Card inside chat */}
                               {msg.quotePayload && (
-                                <div className="bg-slate-950/80 border border-emerald-500/50 rounded-xl p-3 space-y-2.5 text-white">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
-                                      Orçamento Oficial PIX
-                                    </span>
-                                    <span className="text-sm font-black text-emerald-400">
+                                <div className="bg-slate-950/90 border border-emerald-500/60 rounded-xl p-3.5 space-y-3 text-white shadow-lg">
+                                  <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+                                    <div className="flex items-center gap-1.5">
+                                      <QrCode className="w-4 h-4 text-emerald-400" />
+                                      <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider">
+                                        Orçamento Oficial PIX
+                                      </span>
+                                    </div>
+                                    <span className="text-base font-black text-emerald-400">
                                       {formatBRL(msg.quotePayload.totalAmount)}
                                     </span>
                                   </div>
 
-                                  <p className="text-[11px] text-slate-300">
-                                    {msg.quotePayload.notes}
-                                  </p>
+                                  {msg.quotePayload.notes && (
+                                    <p className="text-[11px] text-slate-300 bg-zinc-900/80 p-2 rounded-lg border border-zinc-800">
+                                      {msg.quotePayload.notes}
+                                    </p>
+                                  )}
 
-                                  <button
-                                    onClick={() => handleOpenPixModal(selectedChatBooking)}
-                                    className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-lg text-xs flex items-center justify-center gap-1.5 shadow"
-                                  >
-                                    <QrCode className="w-3.5 h-3.5" /> Abrir Código & QR Code PIX
-                                  </button>
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenPixModal(selectedChatBooking)}
+                                      className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow transition"
+                                    >
+                                      <QrCode className="w-3.5 h-3.5" /> Abrir QR Code & PIX
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const code = msg.quotePayload?.pixPayload || (msg.quotePayload as any)?.pixCode || '36790486534';
+                                        navigator.clipboard.writeText(code);
+                                        setCopiedChatPixKey(msg.id);
+                                        setTimeout(() => setCopiedChatPixKey(null), 2500);
+                                      }}
+                                      className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs rounded-xl border border-zinc-700 flex items-center gap-1 transition"
+                                      title="Copiar Chave / Código PIX Copia e Cola"
+                                    >
+                                      {copiedChatPixKey === msg.id ? (
+                                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5" />
+                                      )}
+                                      <span>{copiedChatPixKey === msg.id ? 'Copiado!' : 'Copiar PIX'}</span>
+                                    </button>
+                                  </div>
                                 </div>
                               )}
 
                               {/* Attachment Preview (Comprovante) */}
                               {msg.attachment && (
-                                <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-700 flex items-center gap-2">
-                                  {msg.attachment.dataUrl ? (
-                                    <img
-                                      src={msg.attachment.dataUrl}
-                                      alt="Comprovante"
-                                      className="w-16 h-16 object-cover rounded-lg border border-slate-700"
-                                    />
-                                  ) : (
-                                    <FileText className="w-8 h-8 text-emerald-400" />
-                                  )}
-                                  <div className="truncate">
-                                    <p className="font-bold text-[11px] text-slate-200 truncate">{msg.attachment.name}</p>
-                                    <span className="text-[9px] text-emerald-400">Comprovante de pagamento</span>
+                                <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-700 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-amber-400 uppercase flex items-center gap-1">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" /> Comprovante Anexado
+                                    </span>
+                                    <span className="text-[9px] text-slate-400 truncate max-w-[140px]">
+                                      {msg.attachment.name}
+                                    </span>
                                   </div>
+
+                                  {msg.attachment.dataUrl ? (
+                                    <div
+                                      onClick={() =>
+                                        setLightboxAttachment({
+                                          name: msg.attachment?.name || 'Comprovante PIX',
+                                          dataUrl: msg.attachment?.dataUrl || '',
+                                          fileType: msg.attachment?.fileType,
+                                        })
+                                      }
+                                      className="relative group cursor-pointer overflow-hidden rounded-lg border border-slate-700 bg-black"
+                                    >
+                                      <img
+                                        src={msg.attachment.dataUrl}
+                                        alt="Comprovante"
+                                        className="w-full max-h-44 object-contain rounded-lg transition group-hover:scale-105"
+                                      />
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
+                                        🔍 Clique para ampliar
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="p-3 bg-zinc-900 rounded-lg flex items-center gap-2 text-slate-300 text-xs">
+                                      <FileText className="w-5 h-5 text-emerald-400" />
+                                      <span className="truncate">{msg.attachment.name}</span>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1744,6 +1861,7 @@ export const ClientView: React.FC<ClientViewProps> = ({
                         );
                       })
                     )}
+                    <div ref={chatEndRef} />
                   </div>
 
                   {/* Pending Attachment Preview Banner */}
@@ -2540,6 +2658,60 @@ export const ClientView: React.FC<ClientViewProps> = ({
           <span>🟢 CHAT COM O ESTÚDIO</span>
         </button>
       </div>
+
+      {/* Lightbox Modal for Receipts & Attachments */}
+      {lightboxAttachment && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setLightboxAttachment(null)}
+        >
+          <div
+            className="bg-zinc-950 border border-zinc-800 rounded-3xl p-4 max-w-3xl w-full max-h-[90vh] flex flex-col space-y-4 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#00FF41]" />
+                <span className="font-black text-sm text-white truncate max-w-[280px] sm:max-w-md">
+                  {lightboxAttachment.name}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={lightboxAttachment.dataUrl}
+                  download={lightboxAttachment.name}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-[#00FF41] border border-[#00FF41]/40 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                >
+                  <Download className="w-3.5 h-3.5" /> Baixar
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setLightboxAttachment(null)}
+                  className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto flex items-center justify-center bg-black/60 rounded-2xl p-2 min-h-[300px]">
+              {lightboxAttachment.fileType === 'pdf' || (!lightboxAttachment.dataUrl.startsWith('data:image') && lightboxAttachment.name.endsWith('.pdf')) ? (
+                <iframe
+                  src={lightboxAttachment.dataUrl}
+                  title="PDF Preview"
+                  className="w-full h-[60vh] rounded-xl border border-zinc-800"
+                />
+              ) : (
+                <img
+                  src={lightboxAttachment.dataUrl}
+                  alt={lightboxAttachment.name}
+                  className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl shadow-lg"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Map Modal */}
       <MapModal

@@ -154,6 +154,11 @@ export const StudioView: React.FC<StudioViewProps> = ({
   // Chat & Quote State
   const [selectedBookingId, setSelectedBookingId] = useState<string>((bookings || [])[0]?.id || '');
   const [chatInputText, setChatInputText] = useState<string>('');
+  const [studioLightboxAttachment, setStudioLightboxAttachment] = useState<{
+    name: string;
+    dataUrl: string;
+  } | null>(null);
+  const studioChatEndRef = React.useRef<HTMLDivElement>(null);
 
   // Undo / Cancel Bookings State
   const [isUndoingToday, setIsUndoingToday] = useState<boolean>(false);
@@ -378,6 +383,13 @@ export const StudioView: React.FC<StudioViewProps> = ({
 
   const selectedBooking = bookings.find((b) => b.id === selectedBookingId) || bookings[0];
   const currentChatMsgs = chatMessages.filter((m) => m.bookingId === selectedBooking?.id);
+
+  // Auto-scroll chat for Studio
+  useEffect(() => {
+    if (activeTab === 'chat_budget' && studioChatEndRef.current) {
+      studioChatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [currentChatMsgs.length, selectedBooking?.id, activeTab]);
 
   // Load Client Performance Report on client change
   useEffect(() => {
@@ -919,28 +931,66 @@ export const StudioView: React.FC<StudioViewProps> = ({
                               {/* Receipt attached alert */}
                               {msg.attachment && (
                                 <div className="bg-slate-950 p-2.5 rounded-xl border border-amber-500/50 space-y-2">
-                                  <p className="text-[10px] font-bold text-amber-400 uppercase">
-                                    Comprovante Anexado pelo Cliente
-                                  </p>
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-[10px] font-bold text-amber-400 uppercase flex items-center gap-1">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" /> Comprovante Anexado
+                                    </p>
+                                    <span className="text-[9px] text-slate-400">{msg.attachment.name}</span>
+                                  </div>
                                   {msg.attachment.dataUrl && (
-                                    <img
-                                      src={msg.attachment.dataUrl}
-                                      alt="Comprovante"
-                                      className="w-full max-h-48 object-contain rounded-lg border border-slate-700"
-                                    />
+                                    <div
+                                      onClick={() =>
+                                        setStudioLightboxAttachment({
+                                          name: msg.attachment?.name || 'Comprovante PIX',
+                                          dataUrl: msg.attachment?.dataUrl || '',
+                                        })
+                                      }
+                                      className="relative group cursor-pointer overflow-hidden rounded-lg border border-slate-700 bg-black"
+                                    >
+                                      <img
+                                        src={msg.attachment.dataUrl}
+                                        alt="Comprovante"
+                                        className="w-full max-h-48 object-contain rounded-lg transition group-hover:scale-105"
+                                      />
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition">
+                                        🔍 Clique para ampliar
+                                      </div>
+                                    </div>
                                   )}
-                                  <button
-                                    onClick={() => handleConfirmPixAction(selectedBooking.id)}
-                                    className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-lg flex items-center justify-center gap-1.5 shadow"
-                                  >
-                                    <CheckCircle2 className="w-4 h-4" /> Aprovar Comprovante & Efetivar PIX
-                                  </button>
+                                  {selectedBooking.status !== 'pago_confirmado' && (
+                                    <button
+                                      onClick={() => handleConfirmPixAction(selectedBooking.id)}
+                                      className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-lg flex items-center justify-center gap-1.5 shadow cursor-pointer transition"
+                                    >
+                                      <CheckCircle2 className="w-4 h-4" /> Aprovar Comprovante & Efetivar PIX
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </div>
                           </div>
                         );
                       })}
+                      <div ref={studioChatEndRef} />
+                    </div>
+
+                    {/* Quick Reply Chips */}
+                    <div className="px-3 py-1.5 bg-slate-950/80 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                      <span className="text-[10px] font-bold text-slate-400 shrink-0">Respostas rápidas:</span>
+                      {[
+                        'Orçamento disponível! Aguardamos o PIX.',
+                        'Comprovante recebido! Validando agora.',
+                        'Pagamento confirmado! Sessão agendada com sucesso.',
+                      ].map((quickText) => (
+                        <button
+                          key={quickText}
+                          type="button"
+                          onClick={() => setChatInputText(quickText)}
+                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 text-[10px] font-semibold rounded-lg border border-slate-800 hover:border-slate-700 whitespace-nowrap transition cursor-pointer shrink-0"
+                        >
+                          {quickText}
+                        </button>
+                      ))}
                     </div>
 
                     {/* Input bar */}
@@ -954,7 +1004,7 @@ export const StudioView: React.FC<StudioViewProps> = ({
                       />
                       <button
                         type="submit"
-                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
                       >
                         <Send className="w-4 h-4" /> Enviar
                       </button>
@@ -2884,15 +2934,15 @@ export const StudioView: React.FC<StudioViewProps> = ({
                   <div className="relative">
                     <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
-                      type="text"
-                      placeholder="1234"
+                      type="password"
+                      placeholder="••••"
                       maxLength={6}
                       value={newUserForm.password}
                       onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-[#00FF41]"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-white font-mono tracking-widest focus:outline-none focus:border-[#00FF41]"
                     />
                   </div>
-                  <span className="text-[10px] text-zinc-500 block">Padrão: 1234 (fácil acesso)</span>
+                  <span className="text-[10px] text-zinc-500 block">PIN de 4 a 6 dígitos numéricos</span>
                 </div>
 
                 {/* Chave PIX */}
@@ -3024,6 +3074,52 @@ export const StudioView: React.FC<StudioViewProps> = ({
                 <Trash2 className="w-4 h-4" />
                 <span>{isClearingUsers ? 'Apagando...' : 'Sim, Limpar e Deixar Só ADM'}</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STUDIO LIGHTBOX MODAL FOR RECEIPTS */}
+      {studioLightboxAttachment && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setStudioLightboxAttachment(null)}
+        >
+          <div
+            className="bg-slate-950 border border-slate-800 rounded-3xl p-4 max-w-3xl w-full max-h-[90vh] flex flex-col space-y-4 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-indigo-400" />
+                <span className="font-black text-sm text-white truncate max-w-[280px] sm:max-w-md">
+                  {studioLightboxAttachment.name}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={studioLightboxAttachment.dataUrl}
+                  download={studioLightboxAttachment.name}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                >
+                  <Download className="w-3.5 h-3.5" /> Baixar Imagem
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setStudioLightboxAttachment(null)}
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto flex items-center justify-center bg-black/60 rounded-2xl p-2 min-h-[300px]">
+              <img
+                src={studioLightboxAttachment.dataUrl}
+                alt={studioLightboxAttachment.name}
+                className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl shadow-lg"
+              />
             </div>
           </div>
         </div>
