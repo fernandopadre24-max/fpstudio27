@@ -37,6 +37,14 @@ interface AuthModalProps {
   onSelectRoleAndUser: (role: Role, user: UserProfile) => void;
   onCreateNewClient: (clientData: Omit<UserProfile, 'id' | 'role'>) => Promise<any> | any;
   adminCredentials?: AdminCredentials;
+  initialTab?: 'studio' | 'client';
+  initialIsRegistering?: boolean;
+  prefilledClientData?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    bandOrArtistName?: string;
+  };
 }
 
 export interface StudioStaffUser {
@@ -82,14 +90,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onSelectRoleAndUser,
   onCreateNewClient,
   adminCredentials,
+  initialTab,
+  initialIsRegistering = false,
+  prefilledClientData,
 }) => {
-  const [activeTab, setActiveTab] = useState<'studio' | 'client'>('studio');
+  const [activeTab, setActiveTab] = useState<'studio' | 'client'>(initialTab || 'studio');
   const [studioLoginMode, setStudioLoginMode] = useState<'pin' | 'email'>('pin');
   const [selectedStaff, setSelectedStaff] = useState<StudioStaffUser>(STUDIO_STAFF_MEMBERS[0]);
   const [pinValue, setPinValue] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
   const [isSuccessPin, setIsSuccessPin] = useState<boolean>(false);
-  const [isRegisteringClient, setIsRegisteringClient] = useState(false);
+  const [isRegisteringClient, setIsRegisteringClient] = useState(initialIsRegistering);
   const [isSubmittingClient, setIsSubmittingClient] = useState(false);
 
   // Email/Password Traditional Studio Login State
@@ -98,10 +109,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loginError, setLoginError] = useState('');
 
   // New Client Registration State
-  const [newName, setNewName] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newBandName, setNewBandName] = useState('');
+  const [newName, setNewName] = useState(prefilledClientData?.name || '');
+  const [newEmail, setNewEmail] = useState(prefilledClientData?.email || '');
+  const [newPhone, setNewPhone] = useState(prefilledClientData?.phone || '');
+  const [newBandName, setNewBandName] = useState(prefilledClientData?.bandOrArtistName || '');
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [newPixKeyType, setNewPixKeyType] = useState<'cpf' | 'email' | 'telefone' | 'aleatoria'>('cpf');
@@ -111,9 +122,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Client Selection / Password Verification State
   const [selectedClientForLogin, setSelectedClientForLogin] = useState<UserProfile | null>(null);
 
-  // Reset fields on modal open
+  // Reset and synchronize fields on modal open
   useEffect(() => {
     if (isOpen) {
+      if (initialTab) {
+        setActiveTab(initialTab);
+      }
+      setIsRegisteringClient(Boolean(initialIsRegistering));
+      if (prefilledClientData) {
+        if (prefilledClientData.name) setNewName(prefilledClientData.name);
+        if (prefilledClientData.email) setNewEmail(prefilledClientData.email);
+        if (prefilledClientData.phone) setNewPhone(prefilledClientData.phone);
+        if (prefilledClientData.bandOrArtistName) setNewBandName(prefilledClientData.bandOrArtistName);
+      }
       setPinValue('');
       setPinError('');
       setIsSuccessPin(false);
@@ -126,7 +147,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setSelectedStaff(STUDIO_STAFF_MEMBERS[0]);
       }
     }
-  }, [isOpen]);
+  }, [isOpen, initialTab, initialIsRegistering, prefilledClientData]);
 
   // Execute Studio PIN Verification
   const verifyStudioPin = useCallback(

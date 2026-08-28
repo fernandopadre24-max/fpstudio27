@@ -65,7 +65,16 @@ import fpStudioLogo from '../assets/images/fpstudio_logo_1786495953533.jpg';
 interface ClientViewProps {
   activeClient: UserProfile;
   isClientLoggedIn?: boolean;
-  onOpenAuthModal?: () => void;
+  onOpenAuthModal?: (config?: {
+    initialTab?: 'studio' | 'client';
+    initialIsRegistering?: boolean;
+    prefilledClientData?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      bandOrArtistName?: string;
+    };
+  }) => void;
   onLogoutClient?: () => void;
   services: StudioService[];
   rooms: StudioRoom[];
@@ -372,6 +381,63 @@ export const ClientView: React.FC<ClientViewProps> = ({
   // Available Time Slots for Room Calendar
   const timeSlots = ['08:00', '10:00', '14:00', '16:00', '18:00', '20:00'];
 
+  // Auto-resume pending booking draft when client registers / logs in
+  React.useEffect(() => {
+    if (isClientLoggedIn && activeClient?.id) {
+      try {
+        const savedDraftStr = safeStorage.getItem('fpstudio_pending_booking_draft');
+        if (savedDraftStr) {
+          const draft = JSON.parse(savedDraftStr);
+          safeStorage.removeItem('fpstudio_pending_booking_draft');
+
+          const srv = services.find((s) => s.id === draft.serviceId) || selectedService || services?.[0];
+          const bookingPayload = {
+            clientId: activeClient.id,
+            clientName: activeClient.name || 'Artista / Cliente',
+            clientEmail: activeClient.email || '',
+            clientPhone: activeClient.phone || '',
+            bandOrArtistName: activeClient.bandOrArtistName || activeClient.name || 'Artista',
+            serviceId: srv?.id || 'srv-grava-producao',
+            roomId: draft.roomId || 'fpstudio',
+            roomName: draft.roomName || 'FPStudio Salvador',
+            preferredDate: draft.preferredDate,
+            startTime: draft.startTime,
+            durationHours: draft.durationHours || 2,
+            notes: draft.notes,
+            totalAmount: draft.totalAmount,
+            paymentPlan: draft.paymentPlan || 'sinal_50',
+          };
+
+          setIsSubmittingBooking(true);
+          Promise.resolve(onRequestBooking(bookingPayload))
+            .then((result: any) => {
+              try {
+                confetti({
+                  particleCount: 90,
+                  spread: 60,
+                  origin: { y: 0.6 },
+                });
+              } catch (e) {}
+
+              if (result && result.booking) {
+                setBookingSuccessModalData({
+                  booking: result.booking,
+                  quote: result.quote,
+                });
+                if (result.booking.id) {
+                  setActiveBookingIdForChat(result.booking.id);
+                }
+              }
+            })
+            .catch((err) => console.error('Error auto-submitting draft booking:', err))
+            .finally(() => setIsSubmittingBooking(false));
+        }
+      } catch (err) {
+        console.warn('Error checking pending booking draft:', err);
+      }
+    }
+  }, [isClientLoggedIn, activeClient?.id]);
+
   const getServiceIcon = (iconName: string) => {
     switch (iconName) {
       case 'Mic2': return <Mic2 className="w-5 h-5" />;
@@ -391,13 +457,6 @@ export const ClientView: React.FC<ClientViewProps> = ({
       basePrice: 300,
       durationHours: 2,
     };
-
-    const clientName = (isClientLoggedIn && activeClient?.name) || bookingClientName.trim() || 'Artista / Cliente';
-    const bandName = (isClientLoggedIn && activeClient?.bandOrArtistName) || bookingBandName.trim() || clientName;
-    const clientPhone = (isClientLoggedIn && activeClient?.phone) || bookingClientPhone.trim() || '(71) 99999-9999';
-    const clientEmail = (isClientLoggedIn && activeClient?.email) || bookingClientEmail.trim() || `cliente_${Date.now()}@fpstudio.com`;
-
-    setIsSubmittingBooking(true);
 
     const optionsTotal = selectedOptions.reduce((acc, optId) => {
       const opt = RECORDING_OPTIONS.find((o) => o.id === optId);
@@ -424,9 +483,54 @@ export const ClientView: React.FC<ClientViewProps> = ({
 
     const fullNotes = [tracksHeader, planHeader, optionsText, bookingNotes].filter(Boolean).join('\n');
 
+    // VERIFICAÇÃO CRÍTICA DE LOGIN DO CLIENTE:
+    // Se NÃO estiver logado como cliente, salva rascunho e vai direto para a tela/modal de cadastro
+    if (!isClientLoggedIn || !activeClient?.id) {
+      const pendingDraft = {
+        serviceId: srv.id,
+        roomId: 'fpstudio',
+        roomName: 'FPStudio Salvador',
+        preferredDate: selectedDate || new Date().toISOString().slice(0, 10),
+        startTime: selectedTime || '14:00',
+        durationHours: srv.durationHours || 2,
+        notes: fullNotes,
+        totalAmount: estimatedTotal,
+        paymentPlan,
+        tracksCount,
+        selectedOptions,
+      };
+
+      try {
+        safeStorage.setItem('fpstudio_pending_booking_draft', JSON.stringify(pendingDraft));
+      } catch (err) {}
+
+      if (onOpenAuthModal) {
+        onOpenAuthModal({
+          initialTab: 'client',
+          initialIsRegistering: true,
+          prefilledClientData: {
+            name: bookingClientName.trim(),
+            bandOrArtistName: bookingBandName.trim() || bookingClientName.trim(),
+            phone: bookingClientPhone.trim(),
+            email: bookingClientEmail.trim(),
+          },
+        });
+      } else {
+        setActiveTab('profile');
+      }
+      return;
+    }
+
+    const clientName = (isClientLoggedIn && activeClient?.name) || bookingClientName.trim() || 'Artista / Cliente';
+    const bandName = (isClientLoggedIn && activeClient?.bandOrArtistName) || bookingBandName.trim() || clientName;
+    const clientPhone = (isClientLoggedIn && activeClient?.phone) || bookingClientPhone.trim() || '(71) 99999-9999';
+    const clientEmail = (isClientLoggedIn && activeClient?.email) || bookingClientEmail.trim() || `cliente_${Date.now()}@fpstudio.com`;
+
+    setIsSubmittingBooking(true);
+
     try {
       const bookingPayload = {
-        clientId: activeClient?.id || '',
+        clientId: activeClient.id,
         clientName,
         clientEmail,
         clientPhone,
@@ -487,6 +591,7 @@ export const ClientView: React.FC<ClientViewProps> = ({
           totalAmount: estimatedTotal,
           discountAmount: 0,
           finalAmount: estimatedTotal,
+          paymentPlan,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -1062,15 +1167,9 @@ export const ClientView: React.FC<ClientViewProps> = ({
                         Perfil Conectado
                       </span>
                     ) : (
-                      onOpenAuthModal && (
-                        <button
-                          type="button"
-                          onClick={onOpenAuthModal}
-                          className="text-[10px] text-emerald-600 dark:text-[#00FF41] hover:underline font-bold"
-                        >
-                          Já possui login? Entrar
-                        </button>
-                      )
+                      <span className="text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                        Cadastro Obrigatório
+                      </span>
                     )}
                   </div>
 
@@ -1093,56 +1192,105 @@ export const ClientView: React.FC<ClientViewProps> = ({
                       </button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
-                          Nome do Responsável *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={bookingClientName}
-                          onChange={(e) => setBookingClientName(e.target.value)}
-                          placeholder="Seu Nome Completo"
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
-                        />
+                    <div className="space-y-2.5 pt-1">
+                      <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-300 text-[11px] flex items-start gap-2">
+                        <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-amber-200">Login ou Cadastro Obrigatório</p>
+                          <p className="text-amber-300/80 text-[10px] mt-0.5">
+                            Para confirmar a data e gerar seu orçamento oficial com chave PIX FPStudio, faça seu cadastro em 1 minuto.
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
-                          WhatsApp / Telefone *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={bookingClientPhone}
-                          onChange={(e) => setBookingClientPhone(e.target.value)}
-                          placeholder="(71) 99999-8888"
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
-                        />
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onOpenAuthModal) {
+                              onOpenAuthModal({
+                                initialTab: 'client',
+                                initialIsRegistering: true,
+                                prefilledClientData: {
+                                  name: bookingClientName.trim(),
+                                  bandOrArtistName: bookingBandName.trim() || bookingClientName.trim(),
+                                  phone: bookingClientPhone.trim(),
+                                  email: bookingClientEmail.trim(),
+                                },
+                              });
+                            }
+                          }}
+                          className="py-2 px-2 bg-[#00FF41]/15 hover:bg-[#00FF41]/25 text-[#00FF41] border border-[#00FF41]/30 font-bold rounded-lg text-[11px] transition text-center flex items-center justify-center gap-1.5"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Cadastrar Artista</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onOpenAuthModal) {
+                              onOpenAuthModal({
+                                initialTab: 'client',
+                                initialIsRegistering: false,
+                              });
+                            }
+                          }}
+                          className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold rounded-lg text-[11px] transition text-center flex items-center justify-center gap-1.5"
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>Já Tenho Login</span>
+                        </button>
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
-                          Nome Artístico / Banda
-                        </label>
-                        <input
-                          type="text"
-                          value={bookingBandName}
-                          onChange={(e) => setBookingBandName(e.target.value)}
-                          placeholder="Ex: Banda Solstício"
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
-                          E-mail
-                        </label>
-                        <input
-                          type="email"
-                          value={bookingClientEmail}
-                          onChange={(e) => setBookingClientEmail(e.target.value)}
-                          placeholder="artista@email.com"
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
-                        />
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                            Nome do Responsável
+                          </label>
+                          <input
+                            type="text"
+                            value={bookingClientName}
+                            onChange={(e) => setBookingClientName(e.target.value)}
+                            placeholder="Seu Nome Completo"
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                            WhatsApp / Telefone
+                          </label>
+                          <input
+                            type="text"
+                            value={bookingClientPhone}
+                            onChange={(e) => setBookingClientPhone(e.target.value)}
+                            placeholder="(71) 99999-8888"
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                            Nome Artístico / Banda
+                          </label>
+                          <input
+                            type="text"
+                            value={bookingBandName}
+                            onChange={(e) => setBookingBandName(e.target.value)}
+                            placeholder="Ex: Banda Solstício"
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
+                            E-mail
+                          </label>
+                          <input
+                            type="email"
+                            value={bookingClientEmail}
+                            onChange={(e) => setBookingClientEmail(e.target.value)}
+                            placeholder="artista@email.com"
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#00FF41]"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1458,16 +1606,23 @@ export const ClientView: React.FC<ClientViewProps> = ({
                       <Loader2 className="w-5 h-5 animate-spin" />
                       <span>ENVIANDO AGENDAMENTO & GERANDO PIX...</span>
                     </>
-                  ) : (
+                  ) : isClientLoggedIn ? (
                     <>
                       <Calendar className="w-5 h-5" />
                       <span>SOLICITAR AGENDAMENTO E GERAR ORÇAMENTO PIX</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      <span>CADASTRAR-SE PARA SOLICITAR AGENDAMENTO E GERAR PIX</span>
                     </>
                   )}
                 </button>
 
                 <p className="text-[10px] text-center text-slate-400">
-                  Ao clicar, seu agendamento é registrado e o código PIX é gerado automaticamente com atendimento em tempo real pelo Chat.
+                  {isClientLoggedIn
+                    ? 'Ao clicar, seu agendamento é registrado e o código PIX é gerado automaticamente com atendimento em tempo real pelo Chat.'
+                    : 'Ao clicar, você será direcionado para o cadastro rápido do artista (com PIN de 4 dígitos) para confirmar o agendamento e emitir seu PIX.'}
                 </p>
 
               </form>

@@ -58,6 +58,16 @@ function AppContent() {
   });
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [authModalConfig, setAuthModalConfig] = useState<{
+    initialTab?: 'studio' | 'client';
+    initialIsRegistering?: boolean;
+    prefilledClientData?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      bandOrArtistName?: string;
+    };
+  }>({});
   const [isAdminSecurityModalOpen, setIsAdminSecurityModalOpen] = useState<boolean>(false);
   const [isClientLoggedIn, setIsClientLoggedIn] = useState<boolean>(() => {
     try {
@@ -1541,6 +1551,20 @@ function AppContent() {
     }
   };
 
+  const handleOpenAuthModal = (config?: {
+    initialTab?: 'studio' | 'client';
+    initialIsRegistering?: boolean;
+    prefilledClientData?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      bandOrArtistName?: string;
+    };
+  }) => {
+    setAuthModalConfig(config || {});
+    setIsAuthModalOpen(true);
+  };
+
   return (
     <div
       className="min-h-screen antialiased selection:text-black pb-12 transition-colors duration-300"
@@ -1574,7 +1598,7 @@ function AppContent() {
         onResetState={handleResetState}
         activeTab={currentRole === 'client' ? clientActiveTab : studioActiveTab}
         setActiveTab={currentRole === 'client' ? setClientActiveTab : setStudioActiveTab}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenAuthModal={handleOpenAuthModal}
         onOpenAdminSecurityModal={() => setIsAdminSecurityModalOpen(true)}
         isClientLoggedIn={isClientLoggedIn}
         onLogoutClient={handleLogoutClient}
@@ -1593,7 +1617,7 @@ function AppContent() {
               services={services}
               activeClient={activeClient}
               isClientLoggedIn={isClientLoggedIn}
-              onOpenAuthModal={() => setIsAuthModalOpen(true)}
+              onOpenAuthModal={handleOpenAuthModal}
               onCreateReview={handleCreateReview}
               onReplyReview={handleReplyReview}
               onLikeReview={handleLikeReview}
@@ -1611,7 +1635,7 @@ function AppContent() {
               bandOrArtistName: language === 'en' ? 'Logged Out Visitor' : 'Visitante Não Logado',
             } as UserProfile)}
             isClientLoggedIn={isClientLoggedIn}
-            onOpenAuthModal={() => setIsAuthModalOpen(true)}
+            onOpenAuthModal={handleOpenAuthModal}
             onLogoutClient={handleLogoutClient}
             services={services}
             rooms={rooms}
@@ -1691,13 +1715,19 @@ function AppContent() {
       {/* Authentication & Profile Switching Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          setAuthModalConfig({});
+        }}
         currentRole={currentRole}
         activeClient={activeClient}
         clients={clients}
         onSelectRoleAndUser={handleSelectRoleAndUser}
         onCreateNewClient={handleCreateNewClient}
         adminCredentials={adminCredentials}
+        initialTab={authModalConfig.initialTab}
+        initialIsRegistering={authModalConfig.initialIsRegistering}
+        prefilledClientData={authModalConfig.prefilledClientData}
       />
 
       {/* Admin Security & Credentials Modal */}
