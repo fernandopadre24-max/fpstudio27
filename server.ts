@@ -75,7 +75,32 @@ function loadDb() {
         notifications = Array.isArray(data.notifications) ? data.notifications : [];
         transactions = Array.isArray(data.transactions) ? data.transactions : [];
         reviews = Array.isArray(data.reviews) ? data.reviews : [];
-        console.log(`[Storage] Base de dados carregada com sucesso! ${services.length} serviços e ${reviews.length} avaliações.`);
+
+        // Backfill any missing transaction for confirmed bookings
+        const existingTxBookingIds = new Set(transactions.map((t) => t.bookingId).filter(Boolean));
+        bookings.forEach((b) => {
+          if ((b.status === 'pago_confirmado' || b.status === 'concluido' || b.status === 'agendado') && !existingTxBookingIds.has(b.id)) {
+            const amount = Number(b.finalAmount) || Number(b.totalAmount) || 0;
+            if (amount > 0) {
+              const backfilledTx: TransactionRecord = {
+                id: `tx-backfilled-${b.id}`,
+                bookingId: b.id,
+                clientId: b.clientId,
+                clientName: b.bandOrArtistName || b.clientName,
+                serviceName: b.serviceName,
+                amount,
+                paymentMethod: 'PIX',
+                confirmedAt: b.updatedAt || b.createdAt || new Date().toISOString(),
+                month: (b.preferredDate || new Date().toISOString()).slice(0, 7),
+                status: 'confirmado',
+              };
+              transactions.push(backfilledTx);
+              existingTxBookingIds.add(b.id);
+            }
+          }
+        });
+
+        console.log(`[Storage] Base de dados carregada com sucesso! ${services.length} serviços, ${bookings.length} agendamentos e ${transactions.length} transações.`);
       }
     }
   } catch (err) {
@@ -137,20 +162,29 @@ function addNotification(notif: Omit<PushNotification, 'id' | 'timestamp' | 'rea
 
 // Calculate Financial Metrics
 function computeFinancials(): FinancialSummary {
-  const totalRevenue = transactions
-    .filter((t) => t.status === 'confirmado')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const confirmedTx = transactions.filter((t) => t.status === 'confirmado');
+  const txBookingIds = new Set(confirmedTx.map((t) => t.bookingId).filter(Boolean));
+  const txSum = confirmedTx.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+  const confirmedBookings = bookings.filter(
+    (b) => b.status === 'pago_confirmado' || b.status === 'agendado' || b.status === 'concluido'
+  );
+  const untrackedBookingsSum = confirmedBookings
+    .filter((b) => !txBookingIds.has(b.id))
+    .reduce((sum, b) => sum + (Number(b.finalAmount) || Number(b.totalAmount) || 0), 0);
+
+  const totalRevenue = txSum + untrackedBookingsSum;
 
   const pendingRevenue = bookings
     .filter((b) => b.status === 'pendente_orcamento' || b.status === 'orcamento_enviado' || b.status === 'comprovante_enviado')
-    .reduce((sum, b) => sum + b.finalAmount, 0);
+    .reduce((sum, b) => sum + (Number(b.finalAmount) || Number(b.totalAmount) || 0), 0);
 
-  const confirmedCount = bookings.filter((b) => b.status === 'pago_confirmado' || b.status === 'agendado' || b.status === 'concluido').length;
+  const confirmedCount = Math.max(confirmedTx.length, confirmedBookings.length);
   const pendingCount = bookings.filter((b) => b.status === 'pendente_orcamento' || b.status === 'orcamento_enviado' || b.status === 'comprovante_enviado').length;
 
   const totalBookedHours = bookings
     .filter((b) => b.status !== 'cancelado')
-    .reduce((sum, b) => sum + b.durationHours, 0);
+    .reduce((sum, b) => sum + (Number(b.durationHours) || 0), 0);
 
   // Available hours estimation (3 rooms * 10h/day * 30 days = 900h)
   const occupancyRatePercentage = Math.min(100, Math.round((totalBookedHours / 180) * 100));
@@ -171,29 +205,25 @@ function computeFinancials(): FinancialSummary {
     monthMap[mCode] = { revenue: 0, count: 0 };
   });
 
-  const confirmedTx = transactions.filter((t) => t.status === 'confirmado');
-  if (confirmedTx.length > 0) {
-    confirmedTx.forEach((t) => {
-      const mCode = t.month || (t.confirmedAt ? t.confirmedAt.slice(0, 7) : '2026-08');
+  confirmedTx.forEach((t) => {
+    const mCode = t.month || (t.confirmedAt ? t.confirmedAt.slice(0, 7) : '2026-08');
+    if (!monthMap[mCode]) {
+      monthMap[mCode] = { revenue: 0, count: 0 };
+    }
+    monthMap[mCode].revenue += (Number(t.amount) || 0);
+    monthMap[mCode].count += 1;
+  });
+
+  confirmedBookings
+    .filter((b) => !txBookingIds.has(b.id))
+    .forEach((b) => {
+      const mCode = b.preferredDate ? b.preferredDate.slice(0, 7) : '2026-08';
       if (!monthMap[mCode]) {
         monthMap[mCode] = { revenue: 0, count: 0 };
       }
-      monthMap[mCode].revenue += t.amount;
+      monthMap[mCode].revenue += (Number(b.finalAmount) || Number(b.totalAmount) || 0);
       monthMap[mCode].count += 1;
     });
-  } else if (confirmedCount > 0) {
-    // If bookings were confirmed directly
-    bookings
-      .filter((b) => b.status === 'pago_confirmado' || b.status === 'agendado' || b.status === 'concluido')
-      .forEach((b) => {
-        const mCode = b.preferredDate ? b.preferredDate.slice(0, 7) : '2026-08';
-        if (!monthMap[mCode]) {
-          monthMap[mCode] = { revenue: 0, count: 0 };
-        }
-        monthMap[mCode].revenue += b.finalAmount;
-        monthMap[mCode].count += 1;
-      });
-  }
 
   const monthlyData = Object.keys(monthMap).map((mCode) => ({
     monthCode: mCode,
@@ -205,7 +235,8 @@ function computeFinancials(): FinancialSummary {
   // Service distribution
   const serviceRevMap: Record<string, number> = {};
   bookings.forEach((b) => {
-    serviceRevMap[b.serviceName] = (serviceRevMap[b.serviceName] || 0) + b.finalAmount;
+    const amt = Number(b.finalAmount) || Number(b.totalAmount) || 0;
+    serviceRevMap[b.serviceName] = (serviceRevMap[b.serviceName] || 0) + amt;
   });
 
   const grandTotal = Object.values(serviceRevMap).reduce((a, b) => a + b, 0) || 1;
@@ -222,8 +253,9 @@ function computeFinancials(): FinancialSummary {
   });
 
   bookings.forEach((b) => {
+    const amt = Number(b.finalAmount) || Number(b.totalAmount) || 0;
     if (clientSpentMap[b.clientId]) {
-      clientSpentMap[b.clientId].total += b.finalAmount;
+      clientSpentMap[b.clientId].total += amt;
       clientSpentMap[b.clientId].sessions += 1;
     }
   });
@@ -1060,19 +1092,33 @@ async function startApp() {
     }
 
     // Record Transaction for Financial Dashboard
-    const newTx: TransactionRecord = {
-      id: `tx-${Date.now()}`,
-      bookingId: booking.id,
-      clientId: booking.clientId,
-      clientName: booking.bandOrArtistName || booking.clientName,
-      serviceName: booking.serviceName,
-      amount: booking.finalAmount,
-      paymentMethod: 'PIX',
-      confirmedAt: new Date().toISOString(),
-      month: new Date().toISOString().slice(0, 7),
-      status: 'confirmado',
-    };
-    transactions.unshift(newTx);
+    const paymentAmount = Number(booking.finalAmount) || Number(booking.totalAmount) || 0;
+    const existingTxIndex = transactions.findIndex((t) => t.bookingId === booking.id);
+    let newTx: TransactionRecord;
+
+    if (existingTxIndex >= 0) {
+      transactions[existingTxIndex] = {
+        ...transactions[existingTxIndex],
+        amount: paymentAmount,
+        status: 'confirmado',
+        confirmedAt: new Date().toISOString(),
+      };
+      newTx = transactions[existingTxIndex];
+    } else {
+      newTx = {
+        id: `tx-${Date.now()}`,
+        bookingId: booking.id,
+        clientId: booking.clientId,
+        clientName: booking.bandOrArtistName || booking.clientName,
+        serviceName: booking.serviceName,
+        amount: paymentAmount,
+        paymentMethod: 'PIX',
+        confirmedAt: new Date().toISOString(),
+        month: new Date().toISOString().slice(0, 7),
+        status: 'confirmado',
+      };
+      transactions.unshift(newTx);
+    }
 
     // Send confirmation message to chat
     const confirmMsg: ChatMessage = {
@@ -1081,7 +1127,7 @@ async function startApp() {
       senderId: 'studio-master',
       senderRole: 'studio',
       senderName: studioInfo.name,
-      message: `🎉 Pagamento PIX de R$ ${booking.finalAmount.toFixed(2)} CONFIRMADO com sucesso! Horário garantido na ${booking.roomName} para o dia ${booking.preferredDate} às ${booking.startTime}.`,
+      message: `🎉 Pagamento PIX de R$ ${paymentAmount.toFixed(2)} CONFIRMADO com sucesso! Horário garantido na ${booking.roomName} para o dia ${booking.preferredDate} às ${booking.startTime}.`,
       type: 'confirmation',
       timestamp: new Date().toISOString(),
     };
@@ -1116,28 +1162,47 @@ async function startApp() {
     booking.status = status;
     booking.updatedAt = new Date().toISOString();
 
-    // Auto-create transaction if marking as pago_confirmado or concluido
-    if ((status === 'pago_confirmado' || status === 'concluido') && !transactions.some((t) => t.bookingId === booking.id)) {
-      const newTx: TransactionRecord = {
-        id: `tx-${Date.now()}`,
-        bookingId: booking.id,
-        clientId: booking.clientId,
-        clientName: booking.bandOrArtistName || booking.clientName,
-        serviceName: booking.serviceName,
-        amount: booking.finalAmount,
-        paymentMethod: 'PIX',
-        confirmedAt: new Date().toISOString(),
-        month: new Date().toISOString().slice(0, 7),
-        status: 'confirmado',
-      };
-      transactions.unshift(newTx);
+    const paymentAmount = Number(booking.finalAmount) || Number(booking.totalAmount) || 0;
+    let newTx: TransactionRecord | undefined;
+
+    // Auto-create/update transaction if marking as pago_confirmado or concluido
+    if (status === 'pago_confirmado' || status === 'concluido' || status === 'agendado') {
+      const existingTxIndex = transactions.findIndex((t) => t.bookingId === booking.id);
+      if (existingTxIndex >= 0) {
+        transactions[existingTxIndex] = {
+          ...transactions[existingTxIndex],
+          amount: paymentAmount,
+          status: 'confirmado',
+        };
+        newTx = transactions[existingTxIndex];
+      } else {
+        newTx = {
+          id: `tx-${Date.now()}`,
+          bookingId: booking.id,
+          clientId: booking.clientId,
+          clientName: booking.bandOrArtistName || booking.clientName,
+          serviceName: booking.serviceName,
+          amount: paymentAmount,
+          paymentMethod: 'PIX',
+          confirmedAt: new Date().toISOString(),
+          month: new Date().toISOString().slice(0, 7),
+          status: 'confirmado',
+        };
+        transactions.unshift(newTx);
+      }
+    } else if (status === 'cancelado') {
+      // If cancelled, set status of transaction to cancelado
+      const existingTxIndex = transactions.findIndex((t) => t.bookingId === booking.id);
+      if (existingTxIndex >= 0) {
+        transactions[existingTxIndex].status = 'cancelado';
+      }
     }
 
     saveDb();
     const updatedFinancials = computeFinancials();
-    broadcastEvent('booking_updated', { booking, financials: updatedFinancials });
+    broadcastEvent('booking_updated', { booking, transaction: newTx, financials: updatedFinancials });
 
-    res.json({ success: true, booking, financials: updatedFinancials });
+    res.json({ success: true, booking, transaction: newTx, financials: updatedFinancials });
   });
 
   // API ROUTE: Cancel/Undo Bookings by Period (Desfazer Pedidos de Ontem / Hoje / Todos)

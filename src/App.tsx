@@ -698,6 +698,23 @@ function AppContent() {
           }
         });
 
+        eventSource.addEventListener('booking_updated', (e: MessageEvent) => {
+          try {
+            const { booking, transaction, financials: updatedFinancials } = JSON.parse(e.data);
+            if (booking) {
+              setBookings((prev) => prev.map((b) => (b.id === booking.id ? booking : b)));
+            }
+            if (transaction) {
+              setTransactions((prev) => [transaction, ...prev.filter((t) => t.id !== transaction.id)]);
+            }
+            if (updatedFinancials) {
+              setFinancials(updatedFinancials);
+            }
+          } catch (err) {
+            console.error('Error parsing SSE booking_updated:', err);
+          }
+        });
+
         eventSource.addEventListener('bookings_bulk_updated', (e: MessageEvent) => {
           try {
             const { bookings: updatedBookings, financials: updatedFinancials } = JSON.parse(e.data);
@@ -962,6 +979,51 @@ function AppContent() {
   };
 
   const handleConfirmPayment = async (bookingId: string) => {
+    // 1. Immediate optimistic UI update
+    const targetBooking = bookings.find((b) => b.id === bookingId);
+    if (targetBooking) {
+      const paymentAmount = Number(targetBooking.finalAmount) || Number(targetBooking.totalAmount) || 0;
+      const updatedBooking: BookingRequest = {
+        ...targetBooking,
+        status: 'pago_confirmado',
+        updatedAt: new Date().toISOString(),
+      };
+
+      const newTx: TransactionRecord = {
+        id: `tx-${Date.now()}`,
+        bookingId: targetBooking.id,
+        clientId: targetBooking.clientId,
+        clientName: targetBooking.bandOrArtistName || targetBooking.clientName,
+        serviceName: targetBooking.serviceName,
+        amount: paymentAmount,
+        paymentMethod: 'PIX',
+        confirmedAt: new Date().toISOString(),
+        month: new Date().toISOString().slice(0, 7),
+        status: 'confirmado',
+      };
+
+      setBookings((prev) => prev.map((b) => (b.id === bookingId ? updatedBooking : b)));
+      setTransactions((prev) => [newTx, ...prev.filter((t) => t.bookingId !== bookingId)]);
+
+      setFinancials((prev) => {
+        const newTotal = (Number(prev.totalRevenue) || 0) + paymentAmount;
+        const newCount = (Number(prev.confirmedCount) || 0) + 1;
+        const newPendingCount = Math.max(0, (Number(prev.pendingCount) || 1) - 1);
+        const newPendingRevenue = Math.max(0, (Number(prev.pendingRevenue) || 0) - paymentAmount);
+
+        return {
+          ...prev,
+          totalRevenue: newTotal,
+          monthlyRevenue: newTotal,
+          confirmedCount: newCount,
+          pendingCount: newPendingCount,
+          pendingRevenue: newPendingRevenue,
+          averageTicket: newCount > 0 ? Math.round(newTotal / newCount) : prev.averageTicket,
+        };
+      });
+    }
+
+    // 2. Server persistence
     try {
       const res = await fetch('/api/payments/confirm', {
         method: 'POST',

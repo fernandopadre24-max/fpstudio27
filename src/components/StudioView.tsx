@@ -484,15 +484,34 @@ export const StudioView: React.FC<StudioViewProps> = ({
   });
 
   // Top KPI / Somatória geral calculations
-  const confirmedBookingsList = bookings.filter((b) => b.status === 'pago_confirmado');
-  const totalConfirmedRevenue = confirmedBookingsList.reduce((acc, b) => acc + (b.totalAmount || 0), 0) || financials.totalRevenue || 0;
+  const confirmedBookingsList = bookings.filter(
+    (b) => b.status === 'pago_confirmado' || b.status === 'concluido' || b.status === 'agendado'
+  );
+  const totalConfirmedFromBookings = confirmedBookingsList.reduce(
+    (acc, b) => acc + (Number(b.finalAmount) || Number(b.totalAmount) || 0),
+    0
+  );
+  const totalConfirmedFromTx = (transactions || [])
+    .filter((t) => t.status === 'confirmado')
+    .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
-  const pendingBookingsList = bookings.filter((b) => b.status === 'orcamento_enviado' || b.status === 'comprovante_enviado' || b.status === 'pendente_orcamento');
-  const totalPendingRevenue = pendingBookingsList.reduce((acc, b) => acc + (b.totalAmount || 0), 0) || financials.pendingRevenue || 0;
+  const totalConfirmedRevenue = Math.max(
+    totalConfirmedFromBookings,
+    totalConfirmedFromTx,
+    Number(financials?.totalRevenue) || 0
+  );
+
+  const pendingBookingsList = bookings.filter(
+    (b) => b.status === 'orcamento_enviado' || b.status === 'comprovante_enviado' || b.status === 'pendente_orcamento'
+  );
+  const totalPendingRevenue = pendingBookingsList.reduce(
+    (acc, b) => acc + (Number(b.finalAmount) || Number(b.totalAmount) || 0),
+    0
+  ) || Number(financials?.pendingRevenue) || 0;
 
   const totalBookingsSum = bookings
     .filter((b) => b.status !== 'cancelado')
-    .reduce((acc, b) => acc + (b.totalAmount || 0), 0);
+    .reduce((acc, b) => acc + (Number(b.finalAmount) || Number(b.totalAmount) || 0), 0);
 
   const pendingReceiptsCount = bookings.filter((b) => b.status === 'comprovante_enviado').length;
 
@@ -1508,17 +1527,17 @@ export const StudioView: React.FC<StudioViewProps> = ({
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-lg space-y-2">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Faturamento Confirmado</span>
                 <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                  {formatBRL(financials.totalRevenue)}
+                  {formatBRL(totalConfirmedRevenue)}
                 </h3>
-                <p className="text-[10px] text-slate-500">{financials.confirmedCount} pagamentos PIX confirmados</p>
+                <p className="text-[10px] text-slate-500">{confirmedBookingsList.length || financials.confirmedCount} pagamentos PIX confirmados</p>
               </div>
 
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-lg space-y-2">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pendente a Receber</span>
                 <h3 className="text-2xl font-black text-amber-600 dark:text-amber-400">
-                  {formatBRL(financials.pendingRevenue)}
+                  {formatBRL(totalPendingRevenue)}
                 </h3>
-                <p className="text-[10px] text-slate-500">{financials.pendingCount} agendamentos aguardando PIX</p>
+                <p className="text-[10px] text-slate-500">{pendingBookingsList.length || financials.pendingCount} agendamentos aguardando PIX</p>
               </div>
 
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-lg space-y-2">

@@ -147,7 +147,7 @@ export interface TransactionRecord {
   paymentMethod: 'PIX';
   confirmedAt: string;
   month: string; // YYYY-MM
-  status: 'confirmado' | 'estornado';
+  status: 'confirmado' | 'estornado' | 'cancelado';
   invoicePdfUrl?: string;
 }
 
